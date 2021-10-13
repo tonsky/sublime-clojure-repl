@@ -1,0 +1,18 @@
+[
+    {
+        "caption": "Clojure REPL: Connect",
+        "command": "connect"
+    },
+    {
+        "caption": "Clojure REPL: Connect to localhost",
+        "command": "connect_localhost"
+    },
+    {
+        "caption": "Clojure REPL: Disconnect",
+        "command": "disconnect"
+    },
+    {
+        "caption": "Clojure REPL: Eval Selection",
+        "command": "eval_selection"
+    },
+]
