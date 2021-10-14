@@ -1,4 +1,5 @@
 import re, socket, sublime, sublime_plugin, threading
+from .src import edn
 
 class Connection:
     def __init__(self):
@@ -12,6 +13,13 @@ class Connection:
             return f'Connected to {self.host}:{self.port}'
         else:
             return f'Not connected, last {self.host}:{self.port}'
+
+    def update_status(self, view):
+        if view:
+            if self.socket:
+                view.set_status('clojure-repl', f"🔌 {self.host}:{self.port}")
+            else:
+                view.erase_status('clojure-repl')
 
 conn = Connection()
 
@@ -54,10 +62,26 @@ class PortInputHandler(sublime_plugin.TextInputHandler):
         port = int(text)
         return 0 <= port and port <= 65536
 
+# class SocketIO:
+#     def __init__(self, socket):
+#         self.socket = socket
+
 def read_loop(socket):
     try:
         while msg := socket.recv(4096):
-            print(">>> ", msg.decode(), end = '')
+            parsed = edn.read(msg.decode())
+            tag = parsed[edn.Keyword("tag")]
+            if tag == edn.Keyword("ret"):
+                val = parsed[edn.Keyword("val")]
+                print(val)
+                view = sublime.active_window().active_view()
+                # view.show_popup(val, sublime.HIDE_ON_CHARACTER_EVENT)
+                view.add_regions('clojure-repl', view.sel(), 'region.greenish', '',  sublime.DRAW_NO_FILL, [val], '#7CCE9B')
+            elif tag == edn.Keyword("out"):
+                val = parsed[edn.Keyword("val")]
+                print(val, end='')
+            else:
+                print("Unknown tag:", tag, "in", msg)
     finally:
         print("Socket closed")
 
@@ -68,10 +92,11 @@ class ConnectCommand(sublime_plugin.ApplicationCommand):
         port = int(port)
         conn.host = host
         conn.port = port
-        sublime.status_message(f"⏳ Connecting to {host}:{port}")
+        # sublime.status_message(f"⏳ Connecting to {host}:{port}")
         try:
             conn.socket = socket.create_connection((host, port))
-            sublime.status_message(f"🔌 Connected to {host}:{port}")
+            if sublime.active_window() and sublime.active_window().active_view():
+                conn.update_status(sublime.active_window().active_view())
         except OSError as msg:
             conn.socket = None
             sublime.status_message(f"❌ Failed to connect to {host}:{port}")
@@ -98,9 +123,11 @@ class ConnectLocalhostCommand(sublime_plugin.ApplicationCommand):
 class DisconnectCommand(sublime_plugin.ApplicationCommand):
     def run(self):
         conn.socket.close()
-        sublime.status_message(f"🙅 Disconnected from {conn.host}:{conn.port}")
         conn.socket = None
         conn.reader = None
+        if sublime.active_window() and sublime.active_window().active_view():
+            conn.update_status(sublime.active_window().active_view())
+        # sublime.status_message(f"🙅 Disconnected from {conn.host}:{conn.port}")    
 
     def is_enabled(self):
         return conn.socket != None
@@ -113,5 +140,10 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
         return conn.socket != None
 
+class EventListener(sublime_plugin.EventListener):
+    def on_activated(self, view):
+        conn.update_status(view)
+
 # (+ 1 2)
 # (println "123")
+# sublime.run_command('connect_localhost', {'port': f'5555'})

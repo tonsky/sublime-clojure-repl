@@ -6,6 +6,10 @@ Goals:
 - Zero dependencies: works directly with pREPL
 - Compact: Display code evaluation results inline
 
+## Status
+
+In development
+
 ## Credits
 
 Made by [Niki Tonsky](https://twitter.com/nikitonsky).
