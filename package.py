@@ -1,5 +1,5 @@
-import re, socket, sublime, sublime_plugin, threading
-from .src import edn
+import json, os, re, socket, sublime, sublime_plugin, threading
+from .src import bencode
 
 class Connection:
     def __init__(self):
@@ -20,6 +20,10 @@ class Connection:
                 view.set_status('clojure-repl', f"🔌 {self.host}:{self.port}")
             else:
                 view.erase_status('clojure-repl')
+
+    def send(self, msg):
+        print(">>>", msg)
+        self.socket.sendall(bencode.encode(msg).encode())
 
 conn = Connection()
 
@@ -62,28 +66,46 @@ class PortInputHandler(sublime_plugin.TextInputHandler):
         port = int(text)
         return 0 <= port and port <= 65536
 
-# class SocketIO:
-#     def __init__(self, socket):
-#         self.socket = socket
+class SocketIO:
+    def __init__(self, socket):
+        self.socket = socket
+        self.buffer = None
+        self.pos = -1
 
-def read_loop(socket):
-    try:
-        while msg := socket.recv(4096):
-            parsed = edn.read(msg.decode())
-            tag = parsed[edn.Keyword("tag")]
-            if tag == edn.Keyword("ret"):
-                val = parsed[edn.Keyword("val")]
-                print(val)
-                view = sublime.active_window().active_view()
-                # view.show_popup(val, sublime.HIDE_ON_CHARACTER_EVENT)
-                view.add_regions('clojure-repl', view.sel(), 'region.greenish', '',  sublime.DRAW_NO_FILL, [val], '#7CCE9B')
-            elif tag == edn.Keyword("out"):
-                val = parsed[edn.Keyword("val")]
-                print(val, end='')
-            else:
-                print("Unknown tag:", tag, "in", msg)
-    finally:
-        print("Socket closed")
+    def read(self, n):
+        if not self.buffer or self.pos >= len(self.buffer):
+            self.buffer = self.socket.recv(4096)
+            # print("<<<", self.buffer.decode())
+            self.pos = 0
+        begin = self.pos
+        end = min(begin + n, len(self.buffer))
+        self.pos = end
+        return self.buffer[begin:end]
+
+def read_loop(read_stream):
+    for msg in read_stream:
+        print("<<<", msg)
+        if "value" in msg:
+            value = msg["value"]
+            view = sublime.active_window().active_view()
+            # view.show_popup(val, sublime.HIDE_ON_CHARACTER_EVENT)
+            view.add_regions('clojure-repl', view.sel(), 'region.greenish', '',  sublime.DRAW_NO_FILL, [value], '#7CCE9B')
+            # view.erase_phantoms("clojure-repl")
+            # region = sublime.Region(view.sel()[0].end(), view.sel()[0].end())
+            # view.add_phantom("clojure-repl", region, f"<dic class='success'>{val}</div>", sublime.LAYOUT_INLINE)
+        elif "root-ex" in msg:
+            text = msg.get("sublime.clojure.repl/root-ex-class") + ": " + msg.get("sublime.clojure.repl/root-ex-msg")
+            if "sublime.clojure.repl/root-ex-data" in msg:
+                text += " " + msg["sublime.clojure.repl/root-ex-data"]
+            view = sublime.active_window().active_view()
+            view.add_regions('clojure-repl', view.sel(), 'region.redish', '',  sublime.DRAW_NO_FILL, [text], '#DD1730')
+        elif "out" in msg or "err" in msg:
+            text = msg.get("out") or msg.get("err")
+            print(text, end="")
+        else:
+            pass
+            # print("Unknown message:", msg)
+    print("read_loop done")
 
 class ConnectCommand(sublime_plugin.ApplicationCommand):
     def run(self, host_port):
@@ -92,17 +114,50 @@ class ConnectCommand(sublime_plugin.ApplicationCommand):
         port = int(port)
         conn.host = host
         conn.port = port
-        # sublime.status_message(f"⏳ Connecting to {host}:{port}")
         try:
             conn.socket = socket.create_connection((host, port))
+            read_stream = bencode.decode_file(SocketIO(conn.socket))
+
+            with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middlewares.clj"), "r") as file:
+                middlewares = file.read()
+
+            conn.send({"op": "clone", "id": 1})
+            resp = next(read_stream)
+            print("<<<", resp)
+            session = resp["new-session"]
+
+            conn.send({"op": "load-file",
+                       "session": session,
+                       "file": middlewares,
+                       "id": 2})
+            print("<<<", next(read_stream))
+            print("<<<", next(read_stream))
+
+            conn.send({"op": "add-middleware",
+                       "middleware": ["sublime.clojure.repl/wrap-errors"],
+                       "extra-namespaces": ["sublime.clojure.repl"],
+                       "session": session,
+                       "id": 3})
+            print("<<<", next(read_stream))
+
+            # conn.send({"op": "ls-middleware",
+            #            "session": session,
+            #            "id": 4})
+            # resp = next(read_stream)
+            # print("<<<", resp)
+            # for m in resp["middleware"]:
+            #     print("  ", m)
+
+            conn.reader = threading.Thread(daemon=True, target=read_loop, args=(read_stream,))
+            conn.reader.start()
+            
             if sublime.active_window() and sublime.active_window().active_view():
                 conn.update_status(sublime.active_window().active_view())
-        except OSError as msg:
+        except Exception as e:
+            print(e)
             conn.socket = None
             sublime.status_message(f"❌ Failed to connect to {host}:{port}")
 
-        conn.reader = threading.Thread(daemon=True, target=read_loop, args=(conn.socket,))
-        conn.reader.start()
 
     def input(self, args):
         return HostPortInputHandler()
@@ -134,8 +189,12 @@ class DisconnectCommand(sublime_plugin.ApplicationCommand):
 
 class EvalSelectionCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        text = self.view.substr(self.view.sel()[0])
-        conn.socket.sendall(text.encode())
+        code = self.view.substr(self.view.sel()[0])
+        conn.send({"op": "eval",
+                   "code": code,
+                   # "nrepl.middleware.caught/caught": "sublime.clojure.repl/print-throwable",
+                   # "nrepl.middleware.caught/print?": "true",
+                   "nrepl.middleware.print/quota": 100})
 
     def is_enabled(self):
         return conn.socket != None
@@ -144,6 +203,4 @@ class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):
         conn.update_status(view)
 
-# (+ 1 2)
-# (println "123")
 # sublime.run_command('connect_localhost', {'port': f'5555'})
