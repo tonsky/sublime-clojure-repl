@@ -4,10 +4,6 @@
         "command": "connect"
     },
     {
-        "caption": "Clojure REPL: Connect to localhost",
-        "command": "connect_localhost"
-    },
-    {
         "caption": "Clojure REPL: Disconnect",
         "command": "disconnect"
     },
