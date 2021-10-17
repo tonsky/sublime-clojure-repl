@@ -13,8 +13,9 @@ In development
 - [x] Parse bencode
 - [x] Command: Disconnect
 - [x] Detect socket close
-- [ ] Redirect stdout & stderr to System.out / System.err
-- [ ] Middleware for error info
+- [x] Redirect stdout & stderr to System.out / System.err
+- [x] Middleware for error info
+- [ ] Print stack trace to stderr
 - [ ] Use nREPL sessions & ids
 - [ ] Keep multiple annotations on screen
 - [ ] Command: Clear annotations

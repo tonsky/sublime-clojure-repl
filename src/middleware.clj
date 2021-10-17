@@ -1,4 +1,4 @@
-(ns sublime.clojure.repl
+(ns sublime-clojure-repl.middleware
   (:require
    [clojure.main :as main]
    [nrepl.middleware :as middleware]
@@ -8,8 +8,7 @@
   (:import
    [nrepl.transport Transport]))
 
-(defn- caught-transport
-  [{:keys [transport] :as msg}]
+(defn- caught-transport [{:keys [transport] :as msg}]
   (reify Transport
     (recv [this]
       (transport/recv transport))
@@ -33,6 +32,32 @@
 
 (middleware/set-descriptor!
   #'wrap-errors
-  {:requires #{#'caught/wrap-caught}
-   :expects #{}
+  {:requires #{#'caught/wrap-caught} ;; run inside wrap-caught
+   :expects #{"eval"} ;; but outside of "eval"
+   :handles {}})
+
+(defn- output-transport [{:keys [transport] :as msg}]
+  (reify Transport
+    (recv [this]
+      (transport/recv transport))
+    (recv [this timeout]
+      (transport/recv transport timeout))
+    (send [this resp]
+      (when-some [out (:out resp)]
+        (.print System/out out)
+        (.flush System/out))
+      (when-some [err (:err resp)]
+        (.print System/err err)
+        (.flush System/err))
+      (transport/send transport resp)
+      this)))
+
+(defn wrap-output [handler]
+  (fn [msg]
+    (handler (assoc msg :transport (output-transport msg)))))
+
+(middleware/set-descriptor!
+  #'wrap-output
+  {:requires #{}
+   :expects #{"eval"} ;; run outside of "eval"
    :handles {}})

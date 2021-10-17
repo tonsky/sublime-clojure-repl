@@ -73,10 +73,10 @@ def handle_msg(msg):
         # view.erase_phantoms("clojure-repl")
         # region = sublime.Region(view.sel()[0].end(), view.sel()[0].end())
         # view.add_phantom("clojure-repl", region, f"<dic class='success'>{value}</div>", sublime.LAYOUT_INLINE)
-    elif "sublime.clojure.repl/root-ex-class" in msg and "sublime.clojure.repl/root-ex-msg" in msg:
-        text = msg["sublime.clojure.repl/root-ex-class"] + ": " + msg["sublime.clojure.repl/root-ex-msg"]
-        if "sublime.clojure.repl/root-ex-data" in msg:
-            text += " " + msg["sublime.clojure.repl/root-ex-data"]
+    elif "sublime-clojure-repl.middleware/root-ex-class" in msg and "sublime-clojure-repl.middleware/root-ex-msg" in msg:
+        text = msg["sublime-clojure-repl.middleware/root-ex-class"] + ": " + msg["sublime-clojure-repl.middleware/root-ex-msg"]
+        if "sublime-clojure-repl.middleware/root-ex-data" in msg:
+            text += " " + msg["sublime-clojure-repl.middleware/root-ex-data"]
         view = sublime.active_window().active_view()
         view.add_regions('clojure-repl', view.sel(), 'region.redish', '',  sublime.DRAW_NO_FILL, [text], '#DD1730')
     elif "root-ex" in msg:
@@ -105,7 +105,7 @@ def connect(host, port):
         conn.socket = socket.create_connection((host, port))
         read_stream = bencode.decode_file(SocketIO(conn.socket))
 
-        with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middlewares.clj"), "r") as file:
+        with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
             middlewares = file.read()
 
         conn.send({"op": "clone", "id": 1})
@@ -121,19 +121,19 @@ def connect(host, port):
         print("<<<", next(read_stream))
 
         conn.send({"op": "add-middleware",
-                   "middleware": ["sublime.clojure.repl/wrap-errors"],
-                   "extra-namespaces": ["sublime.clojure.repl"],
+                   "middleware": ["sublime-clojure-repl.middleware/wrap-errors", "sublime-clojure-repl.middleware/wrap-output"],
+                   "extra-namespaces": ["sublime-clojure-repl.middleware"],
                    "session": session,
                    "id": 3})
         print("<<<", next(read_stream))
 
-        # conn.send({"op": "ls-middleware",
-        #            "session": session,
-        #            "id": 4})
-        # resp = next(read_stream)
-        # print("<<<", resp)
-        # for m in resp["middleware"]:
-        #     print("  ", m)
+        conn.send({"op": "ls-middleware",
+                   "session": session,
+                   "id": 4})
+        resp = next(read_stream)
+        print("<<<", resp)
+        for m in resp["middleware"]:
+            print("  ", m)
 
         conn.reader = threading.Thread(daemon=True, target=read_loop, args=(read_stream,))
         conn.reader.start()
@@ -180,7 +180,7 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
         code = self.view.substr(self.view.sel()[0])
         conn.send({"op": "eval",
                    "code": code,
-                   # "nrepl.middleware.caught/caught": "sublime.clojure.repl/print-throwable",
+                   # "nrepl.middleware.caught/caught": "sublime-clojure-repl.middleware/print-throwable",
                    # "nrepl.middleware.caught/print?": "true",
                    "nrepl.middleware.print/quota": 100})
 
