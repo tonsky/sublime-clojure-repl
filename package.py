@@ -127,13 +127,13 @@ def connect(host, port):
                    "id": 3})
         print("<<<", next(read_stream))
 
-        conn.send({"op": "ls-middleware",
-                   "session": session,
-                   "id": 4})
-        resp = next(read_stream)
-        print("<<<", resp)
-        for m in resp["middleware"]:
-            print("  ", m)
+        # conn.send({"op": "ls-middleware",
+        #            "session": session,
+        #            "id": 4})
+        # resp = next(read_stream)
+        # print("<<<", resp)
+        # for m in resp["middleware"]:
+        #     print("  ", m)
 
         conn.reader = threading.Thread(daemon=True, target=read_loop, args=(read_stream,))
         conn.reader.start()
@@ -180,8 +180,7 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
         code = self.view.substr(self.view.sel()[0])
         conn.send({"op": "eval",
                    "code": code,
-                   # "nrepl.middleware.caught/caught": "sublime-clojure-repl.middleware/print-throwable",
-                   # "nrepl.middleware.caught/print?": "true",
+                   "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
                    "nrepl.middleware.print/quota": 100})
 
     def is_enabled(self):

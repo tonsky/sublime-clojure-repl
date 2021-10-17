@@ -1,12 +1,23 @@
 (ns sublime-clojure-repl.middleware
   (:require
    [clojure.main :as main]
+   [clojure.stacktrace :as stacktrace]
    [nrepl.middleware :as middleware]
    [nrepl.middleware.print :as print]
    [nrepl.middleware.caught :as caught]
    [nrepl.transport :as transport])
   (:import
    [nrepl.transport Transport]))
+
+(defn- root-cause [^Throwable t]
+  (when t
+    (loop [t t]
+      (if-some [cause (.getCause t)]
+        (recur cause)
+        t))))
+
+(defn print-root-trace [^Throwable t]
+  (stacktrace/print-stack-trace (root-cause t)))
 
 (defn- caught-transport [{:keys [transport] :as msg}]
   (reify Transport
@@ -15,7 +26,7 @@
     (recv [this timeout]
       (transport/recv transport timeout))
     (send [this {throwable ::caught/throwable :as resp}]
-      (let [root  (some-> throwable main/root-cause)
+      (let [root  (root-cause throwable)
             data  (ex-data root)
             resp' (cond-> resp
                     root (assoc
