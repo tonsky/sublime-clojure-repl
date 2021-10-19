@@ -2,13 +2,16 @@
 (+ 1 2)
 
 ; long value
-(range 100)
+(range 300)
 
 ; delayed eval
-(do (Thread/sleep 3000) :done)
+(do (Thread/sleep 1000) :done)
 
 ; infinite sequence
 (range)
+
+; reader conditionals
+#?(:clj (+ 1 2))
 
 ; print
 (println "Hello, Sublime!")

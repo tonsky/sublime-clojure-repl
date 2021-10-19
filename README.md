@@ -8,7 +8,7 @@ Goals:
 
 ## Status
 
-In development
+In development.
 
 - [x] Command: Connect to nREPL
 - [x] Parse bencode
@@ -23,12 +23,13 @@ In development
 - [x] Pending evaluation annotation
 - [x] Identify namespace of a file
 - [x] Command: Interrupt evaluation
+- [x] Send file name and position with eval
 - [ ] Command: Evaluate top-level form under cursor
 - [ ] Command: Evaluate file
-- [x] Send file name and position with eval
 - [ ] Move colors into color scheme
 - [ ] Eval top-level non-bracketed forms (strings, symbols, regexes)
-- [ ] Handle error statuses
+- [x] Handle namespace-not-found
+- [ ] Handle nrepl.middleware.print/truncated-keys
 
 ## Motivation
 

@@ -143,6 +143,9 @@ def handle_msg(msg):
     elif "root-ex" in msg:
         conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
 
+    elif "status" in msg and "namespace-not-found" in msg["status"]:
+        conn.add_eval(id, view, region, 'region.redish', f'Namespace not found: {msg["ns"]}', '#DD1730')
+
     else:
         pass
 
@@ -240,7 +243,7 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
                "session": conn.session,
                "id":      conn.pending_id,
                "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
-               "nrepl.middleware.print/quota": 100}
+               "nrepl.middleware.print/quota": 300}
         if view.file_name():
             msg["file"] = view.file_name()
         conn.send(msg)
