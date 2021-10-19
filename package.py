@@ -1,51 +1,51 @@
 import json, os, re, socket, sublime, sublime_plugin, threading
+from collections import defaultdict
+from dataclasses import dataclass
 from .src import bencode
+
+ns = 'sublime-clojure-repl'
+
+@dataclass(eq=True, frozen=True)
+class Region:
+    id: int
+    begin: int
+    end: int
 
 class Connection:
     def __init__(self):
-        self.socket = None
         self.host = 'localhost'
         self.port = 5555
-        self.reader = None
+        self.regions: dict[sublime.View, list[Region]] = defaultdict(list)
+        self.reset()
 
-    def __str__(self):
-        if self.socket:
-            return f'Connected to {self.host}:{self.port}'
-        else:
-            return f'Not connected, last {self.host}:{self.port}'
+    def set_status(self, status):
+        self.status = status
+        self.refresh_status()
 
-    def update_status(self, view):
-        if view:
-            if self.socket:
-                view.set_status('clojure-repl', f"🔌 {self.host}:{self.port}")
-            else:
-                view.erase_status('clojure-repl')
+    def refresh_status(self):
+        if sublime.active_window():
+            view = sublime.active_window().active_view()
+            if view:
+                view.set_status(ns, self.status)
 
     def send(self, msg):
         print(">>>", msg)
         self.socket.sendall(bencode.encode(msg).encode())
 
+    def reset(self):
+        self.socket = None
+        self.reader = None
+        # TODO remove regions
+        self.next_id = 10
+        self.session = None
+        self.set_status('🌑 Offline')
+
+    def disconnect(self):
+        if self.socket:
+            self.socket.close()
+            self.reset()            
+
 conn = Connection()
-
-class HostPortInputHandler(sublime_plugin.TextInputHandler):
-    def placeholder(self):
-        return "host:port"
-
-    def initial_text(self):
-        if conn.host and conn.port:
-            return f'{conn.host}:{conn.port}'
-
-    def preview(self, text):
-        if not self.validate(text):
-            return "Invalid, expected <host>:<port>"
-
-    def validate(self, text):
-        text = text.strip()
-        if not re.fullmatch(r'[a-zA-Z0-9\.]+:\d{1,5}', text):
-            return False
-        host, port = text.split(':')
-        port = int(port)
-        return 0 <= port and port <= 65536
 
 class SocketIO:
     def __init__(self, socket):
@@ -65,7 +65,29 @@ class SocketIO:
 
 def handle_msg(msg):
     print("<<<", msg)
-    if "value" in msg:
+    if msg.get("id") == 1 and "new-session" in msg:
+        conn.session = msg["new-session"]
+        with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
+            conn.send({"op": "load-file",
+                       "session": conn.session,
+                       "file": file.read(),
+                       "id": 2})
+        conn.set_status("🌓 Uploading middlewares")
+    elif msg.get("id") == 2 and msg.get("status") == ["done"]:
+        conn.send({"op":               "add-middleware",
+                   "middleware":       ["sublime-clojure-repl.middleware/wrap-errors",
+                                        "sublime-clojure-repl.middleware/wrap-output"],
+                   "extra-namespaces": ["sublime-clojure-repl.middleware"],
+                   "session":          conn.session,
+                   "id":               3})
+        conn.set_status("🌔 Adding middlewares")
+    elif msg.get("id") == 3 and msg.get("status") == ["done"]:
+        # conn.send({"op": "ls-middleware",
+        #            "session": session,
+        #            "id": 4})
+        conn.set_status(f"🌕 {conn.host}:{conn.port}")
+
+    elif "value" in msg:
         value = msg["value"]
         view = sublime.active_window().active_view()
         # view.show_popup(value, sublime.HIDE_ON_CHARACTER_EVENT)
@@ -90,61 +112,49 @@ def handle_msg(msg):
         pass
         # print("Unknown message:", msg)
 
-def read_loop(read_stream):
+def read_loop():
     try:
+        conn.send({"op": "clone", "id": 1})
+        conn.set_status(f"🌒 Cloning session")
+
+        read_stream = bencode.decode_file(SocketIO(conn.socket))
         for msg in read_stream:
             handle_msg(msg)
     except OSError:
         pass
-    disconnect()
+    conn.disconnect()
 
 def connect(host, port):
     conn.host = host
     conn.port = port
     try:
         conn.socket = socket.create_connection((host, port))
-        read_stream = bencode.decode_file(SocketIO(conn.socket))
-
-        with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
-            middlewares = file.read()
-
-        conn.send({"op": "clone", "id": 1})
-        resp = next(read_stream)
-        print("<<<", resp)
-        session = resp["new-session"]
-
-        conn.send({"op": "load-file",
-                   "session": session,
-                   "file": middlewares,
-                   "id": 2})
-        print("<<<", next(read_stream))
-        print("<<<", next(read_stream))
-
-        conn.send({"op": "add-middleware",
-                   "middleware": ["sublime-clojure-repl.middleware/wrap-errors", "sublime-clojure-repl.middleware/wrap-output"],
-                   "extra-namespaces": ["sublime-clojure-repl.middleware"],
-                   "session": session,
-                   "id": 3})
-        print("<<<", next(read_stream))
-
-        # conn.send({"op": "ls-middleware",
-        #            "session": session,
-        #            "id": 4})
-        # resp = next(read_stream)
-        # print("<<<", resp)
-        # for m in resp["middleware"]:
-        #     print("  ", m)
-
-        conn.reader = threading.Thread(daemon=True, target=read_loop, args=(read_stream,))
+        conn.reader = threading.Thread(daemon=True, target=read_loop)
         conn.reader.start()
-        
-        if sublime.active_window() and sublime.active_window().active_view():
-            conn.update_status(sublime.active_window().active_view())
-        sublime.status_message(f"🔌 Just connected to {host}:{port}")
     except Exception as e:
         print(e)
         conn.socket = None
-        sublime.status_message(f"❌ Failed to connect to {host}:{port}")
+        conn.set_status(f"🌑 {host}:{port}")
+
+class HostPortInputHandler(sublime_plugin.TextInputHandler):
+    def placeholder(self):
+        return "host:port"
+
+    def initial_text(self):
+        if conn.host and conn.port:
+            return f'{conn.host}:{conn.port}'
+
+    def preview(self, text):
+        if not self.validate(text):
+            return "Invalid, expected <host>:<port>"
+
+    def validate(self, text):
+        text = text.strip()
+        if not re.fullmatch(r'[a-zA-Z0-9\.]+:\d{1,5}', text):
+            return False
+        host, port = text.split(':')
+        port = int(port)
+        return 0 <= port and port <= 65536
 
 class ConnectCommand(sublime_plugin.ApplicationCommand):
     def run(self, host_port):
@@ -158,19 +168,9 @@ class ConnectCommand(sublime_plugin.ApplicationCommand):
     def is_enabled(self):
         return conn.socket == None
 
-def disconnect():
-    if conn.socket:
-        socket = conn.socket
-        conn.socket = None
-        conn.reader = None
-        socket.close()
-        if sublime.active_window() and sublime.active_window().active_view():
-            conn.update_status(sublime.active_window().active_view())
-        sublime.status_message(f"🙅 Disconnected from {conn.host}:{conn.port}")    
-
 class DisconnectCommand(sublime_plugin.ApplicationCommand):
     def run(self):
-        disconnect()
+        conn.disconnect()
 
     def is_enabled(self):
         return conn.socket != None
@@ -188,11 +188,11 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
 
 class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):
-        conn.update_status(view)
+        conn.refresh_status()
 
 def plugin_loaded():
     connect('localhost', 5555)
     pass
 
 def plugin_unloaded():
-    disconnect()
+    conn.disconnect()

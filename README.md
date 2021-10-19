@@ -4,6 +4,7 @@ Goals:
 
 - Decomplected: just REPL, nothing more
 - Compact: Display code evaluation results inline
+- Connect over network: no requirements on project structure
 
 ## Status
 
