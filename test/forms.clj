@@ -1,16 +1,3 @@
-;;; test.clj: a test file to check eval plugin
-
-;; by Nikita Prokopov
-;; October 2021
-
-(ns ^{:doc "Hey!
-Nice namespace"
-:added ['asdas #regexp]
-:author "Niki Tonsky"}
-  sublime-clojure-repl.test
-  (:require
-   [clojure.string :as str]))
-
 ; simple expr
 (+ 1 2)
 
@@ -22,13 +9,6 @@ Nice namespace"
 
 ; infinite sequence
 (range)
-
-; eval in ns
-*ns*
-(find-ns 'sublime-clojure-repl.test)
-(str/join ", " (range 10))
-(defn fun []
-  *ns*)
 
 ; print
 (println "Hello, Sublime!")

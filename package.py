@@ -169,6 +169,22 @@ def connect(host, port):
         conn.socket = None
         conn.set_status(f"🌑 {host}:{port}")
 
+def topmost_form(view, point):
+    for region in view.find_by_selector("meta.parens"):
+        if region.contains(point):
+            return region
+
+def namespace(view, point):
+    ns = None
+    for region in view.find_by_selector("entity.name"):
+        if region.end() <= point:
+            form = topmost_form(view, region.begin())
+            if re.match(r"\([\s,]*ns[\s,]", view.substr(form)):
+                ns = view.substr(region)
+        else:
+            break
+    return ns
+
 class HostPortInputHandler(sublime_plugin.TextInputHandler):
     def placeholder(self):
         return "host:port"
@@ -218,6 +234,7 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
         (line, column) = view.rowcol_utf16(region.begin())
         msg = {"op":      "eval",
                "code":    code,
+               "ns":      namespace(view, region.begin()) or 'user',
                "line":    line + 1,
                "column":  column + 1,
                "session": conn.session,
