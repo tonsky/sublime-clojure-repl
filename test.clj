@@ -48,6 +48,14 @@ Nice namespace"
 ; wrapped exception (RuntimeException inside CompilerException)
 unresolved-symbol
 
+(defn f [])
+
+(defn g []
+  unresolved-symbol)
+
+; column reports for Unicode
+#"alkjdljl👨🏿kjlkj👨🏻‍🤝‍👨🏼ljasljlkjasjasljas\u"
+
 ; two exprs
 (+ 1 2) (+ 3 4)
 

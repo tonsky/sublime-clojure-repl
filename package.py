@@ -215,12 +215,18 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
         conn.next_id += 1
         region = view.sel()[0]
         code = view.substr(region) # TODO multiple selections?
-        conn.send({"op":      "eval",
-                   "code":    code,
-                   "session": conn.session,
-                   "id":      conn.pending_id,
-                   "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
-                   "nrepl.middleware.print/quota": 100})
+        (line, column) = view.rowcol_utf16(region.begin())
+        msg = {"op":      "eval",
+               "code":    code,
+               "line":    line + 1,
+               "column":  column + 1,
+               "session": conn.session,
+               "id":      conn.pending_id,
+               "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
+               "nrepl.middleware.print/quota": 100}
+        if view.file_name():
+            msg["file"] = view.file_name()
+        conn.send(msg)
         conn.clear_evals_intersecting(view, region)
         conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
         

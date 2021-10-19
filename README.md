@@ -25,7 +25,7 @@ In development
 - [x] Command: Interrupt evaluation
 - [ ] Command: Evaluate top-level form under cursor
 - [ ] Command: Evaluate file
-- [ ] Send file name and position with eval
+- [x] Send file name and position with eval
 - [ ] Move colors into color scheme
 
 ## Motivation
