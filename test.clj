@@ -4,6 +4,9 @@
 ; long value
 (range 100)
 
+; delayed eval
+(do (Thread/sleep 1000) :done)
+
 ; infinite sequence
 (range)
 
@@ -16,7 +19,7 @@
 (.println System/err "System.err.println")
 
 ; print in background
-(doseq [i (range 0 100)] (Thread/sleep 1000) (println i))
+(doseq [i (range 0 10)] (Thread/sleep 1000) (println i))
 
 ; throw exception
 (throw (ex-info "abc" {:a 1}))

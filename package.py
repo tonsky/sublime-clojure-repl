@@ -6,16 +6,16 @@ from .src import bencode
 ns = 'sublime-clojure-repl'
 
 @dataclass(eq=True, frozen=True)
-class Region:
-    id: int
-    begin: int
-    end: int
+class Eval:
+    key: str
+    view: sublime.View
+    scope: str
 
 class Connection:
     def __init__(self):
         self.host = 'localhost'
         self.port = 5555
-        self.regions: dict[sublime.View, list[Region]] = defaultdict(list)
+        self.evals: dict[int, Eval] = {}
         self.reset()
 
     def set_status(self, status):
@@ -35,10 +35,33 @@ class Connection:
     def reset(self):
         self.socket = None
         self.reader = None
-        # TODO remove regions
         self.next_id = 10
         self.session = None
         self.set_status('🌑 Offline')
+        self.clear_evals()
+
+    def clear_evals(self):
+        for id, eval in self.evals.items():
+            eval.view.erase_regions(eval.key)
+        self.evals.clear()
+
+    def clear_evals_in_view(self, view):
+        for id, eval in list(self.evals.items()):
+            if eval.view == view and eval.scope != 'region.bluish':
+                eval.view.erase_regions(eval.key)
+                del self.evals[id]
+
+    def clear_evals_intersecting(self, view, region):
+        for id, eval in list(self.evals.items()):
+            regions = eval.view.get_regions(eval.key)
+            if regions and len(regions) >= 1 and region.intersects(regions[0]):
+                eval.view.erase_regions(eval.key)
+                del self.evals[id]
+
+    def add_eval(self, id, view, region, scope, text, color):
+        key = f"{ns}.eval-{id}"
+        view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
+        self.evals[id] = Eval(key, view, scope)
 
     def disconnect(self):
         if self.socket:
@@ -65,6 +88,19 @@ class SocketIO:
 
 def handle_msg(msg):
     print("<<<", msg)
+
+    id = None
+    view = None
+    region = None
+    if "id" in msg:
+        id = msg["id"]
+        if id in conn.evals:
+            eval = conn.evals[id]
+            view = eval.view
+            regions = view.get_regions(eval.key)
+            if regions and len(regions) >= 1:
+                region = regions[0]
+
     if msg.get("id") == 1 and "new-session" in msg:
         conn.session = msg["new-session"]
         with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
@@ -73,6 +109,7 @@ def handle_msg(msg):
                        "file": file.read(),
                        "id": 2})
         conn.set_status("🌓 Uploading middlewares")
+
     elif msg.get("id") == 2 and msg.get("status") == ["done"]:
         conn.send({"op":               "add-middleware",
                    "middleware":       ["sublime-clojure-repl.middleware/wrap-errors",
@@ -81,36 +118,28 @@ def handle_msg(msg):
                    "session":          conn.session,
                    "id":               3})
         conn.set_status("🌔 Adding middlewares")
+
     elif msg.get("id") == 3 and msg.get("status") == ["done"]:
         # conn.send({"op": "ls-middleware",
         #            "session": session,
         #            "id": 4})
         conn.set_status(f"🌕 {conn.host}:{conn.port}")
 
-    elif "value" in msg:
+    elif "value" in msg and id and view and region:
         value = msg["value"]
-        view = sublime.active_window().active_view()
-        # view.show_popup(value, sublime.HIDE_ON_CHARACTER_EVENT)
-        view.add_regions('clojure-repl', view.sel(), 'region.greenish', '',  sublime.DRAW_NO_FILL, [value], '#7CCE9B')
-        # view.erase_phantoms("clojure-repl")
-        # region = sublime.Region(view.sel()[0].end(), view.sel()[0].end())
-        # view.add_phantom("clojure-repl", region, f"<dic class='success'>{value}</div>", sublime.LAYOUT_INLINE)
+        conn.add_eval(id, view, region, 'region.greenish', value, '#7CCE9B')
+
     elif "sublime-clojure-repl.middleware/root-ex-class" in msg and "sublime-clojure-repl.middleware/root-ex-msg" in msg:
         text = msg["sublime-clojure-repl.middleware/root-ex-class"] + ": " + msg["sublime-clojure-repl.middleware/root-ex-msg"]
         if "sublime-clojure-repl.middleware/root-ex-data" in msg:
             text += " " + msg["sublime-clojure-repl.middleware/root-ex-data"]
-        view = sublime.active_window().active_view()
-        view.add_regions('clojure-repl', view.sel(), 'region.redish', '',  sublime.DRAW_NO_FILL, [text], '#DD1730')
+        conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
+
     elif "root-ex" in msg:
-        text = msg["root-ex"]
-        view = sublime.active_window().active_view()
-        view.add_regions('clojure-repl', view.sel(), 'region.redish', '',  sublime.DRAW_NO_FILL, [text], '#DD1730')
-    elif "out" in msg or "err" in msg:
-        text = msg.get("out") or msg.get("err")
-        print(text, end="")
+        conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
+
     else:
         pass
-        # print("Unknown message:", msg)
 
 def read_loop():
     try:
@@ -177,14 +206,26 @@ class DisconnectCommand(sublime_plugin.ApplicationCommand):
 
 class EvalSelectionCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        code = self.view.substr(self.view.sel()[0])
-        conn.send({"op": "eval",
-                   "code": code,
+        view = self.view
+        id = conn.next_id
+        conn.next_id += 1
+        region = view.sel()[0]
+        code = view.substr(region) # TODO multiple selections?
+        conn.send({"op":      "eval",
+                   "code":    code,
+                   "session": conn.session,
+                   "id":      id,
                    "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
                    "nrepl.middleware.print/quota": 100})
-
+        conn.clear_evals_intersecting(view, region)
+        conn.add_eval(id, view, region, 'region.bluish', '...', '#7C9BCE')
+        
     def is_enabled(self):
-        return conn.socket != None
+        return conn.socket != None and conn.session != None
+
+class ClearEvalsCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        conn.clear_evals_in_view(self.view)
 
 class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):

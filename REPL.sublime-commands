@@ -11,4 +11,8 @@
         "caption": "Clojure REPL: Eval Selection",
         "command": "eval_selection"
     },
+    {
+        "caption": "Clojure REPL: Clear evaluation results",
+        "command": "clear_evals"
+    },
 ]

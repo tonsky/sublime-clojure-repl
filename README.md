@@ -17,13 +17,14 @@ In development
 - [x] Redirect stdout & stderr to System.out / System.err
 - [x] Middleware for error info
 - [x] Print stack trace to stderr
-- [ ] Use nREPL sessions & ids
-- [ ] Keep multiple annotations on screen
-- [ ] Command: Clear annotations
-- [ ] Pending evaluation annotation
+- [x] Use nREPL sessions & ids
+- [x] Keep multiple annotations on screen
+- [x] Command: Clear annotations
+- [x] Pending evaluation annotation
 - [ ] Command: Interrupt evaluation
 - [ ] Command: Evaluate top-level form under cursor
 - [ ] Command: Evaluate file
+- [ ] Move colors into color scheme
 
 ## Motivation
 
