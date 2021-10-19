@@ -15,4 +15,8 @@
         "caption": "Clojure REPL: Clear evaluation results",
         "command": "clear_evals"
     },
+    {
+        "caption": "Clojure REPL: Interrupt current evaluation",
+        "command": "interrupt_eval"
+    },
 ]

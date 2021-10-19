@@ -21,9 +21,11 @@ In development
 - [x] Keep multiple annotations on screen
 - [x] Command: Clear annotations
 - [x] Pending evaluation annotation
-- [ ] Command: Interrupt evaluation
+- [ ] Identify namespace of a file
+- [x] Command: Interrupt evaluation
 - [ ] Command: Evaluate top-level form under cursor
 - [ ] Command: Evaluate file
+- [ ] Send file name and position with eval
 - [ ] Move colors into color scheme
 
 ## Motivation

@@ -36,6 +36,7 @@ class Connection:
         self.socket = None
         self.reader = None
         self.next_id = 10
+        self.pending_id = None
         self.session = None
         self.set_status('🌑 Offline')
         self.clear_evals()
@@ -101,6 +102,9 @@ def handle_msg(msg):
             if regions and len(regions) >= 1:
                 region = regions[0]
 
+    if id and id == conn.pending_id and "status" in msg and "done" in msg["status"]:
+        conn.pending_id = None
+
     if msg.get("id") == 1 and "new-session" in msg:
         conn.session = msg["new-session"]
         with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
@@ -109,6 +113,7 @@ def handle_msg(msg):
                        "file": file.read(),
                        "id": 2})
         conn.set_status("🌓 Uploading middlewares")
+        conn.pending_id = None
 
     elif msg.get("id") == 2 and msg.get("status") == ["done"]:
         conn.send({"op":               "add-middleware",
@@ -143,11 +148,10 @@ def handle_msg(msg):
 
 def read_loop():
     try:
-        conn.send({"op": "clone", "id": 1})
+        conn.pending_id = 1
+        conn.send({"op": "clone", "id": conn.pending_id})
         conn.set_status(f"🌒 Cloning session")
-
-        read_stream = bencode.decode_file(SocketIO(conn.socket))
-        for msg in read_stream:
+        for msg in bencode.decode_file(SocketIO(conn.socket)):
             handle_msg(msg)
     except OSError:
         pass
@@ -207,32 +211,45 @@ class DisconnectCommand(sublime_plugin.ApplicationCommand):
 class EvalSelectionCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         view = self.view
-        id = conn.next_id
+        conn.pending_id = conn.next_id
         conn.next_id += 1
         region = view.sel()[0]
         code = view.substr(region) # TODO multiple selections?
         conn.send({"op":      "eval",
                    "code":    code,
                    "session": conn.session,
-                   "id":      id,
+                   "id":      conn.pending_id,
                    "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
                    "nrepl.middleware.print/quota": 100})
         conn.clear_evals_intersecting(view, region)
-        conn.add_eval(id, view, region, 'region.bluish', '...', '#7C9BCE')
+        conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
         
     def is_enabled(self):
-        return conn.socket != None and conn.session != None
+        return conn.socket != None \
+            and conn.session != None \
+            and conn.pending_id == None
 
 class ClearEvalsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         conn.clear_evals_in_view(self.view)
+
+class InterruptEvalCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        conn.send({"op":           "interrupt",
+                   "session":      conn.session,
+                   "interrupt-id": conn.pending_id})
+
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and conn.pending_id != None
 
 class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):
         conn.refresh_status()
 
 def plugin_loaded():
-    connect('localhost', 5555)
+    connect('localhost', 5555) # FIXME
     pass
 
 def plugin_unloaded():
