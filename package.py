@@ -173,16 +173,26 @@ def connect(host, port):
         conn.set_status(f"🌑 {host}:{port}")
 
 def topmost_form(view, point):
-    for region in view.find_by_selector("meta.parens"):
-        if region.contains(point):
-            return region
+    if view.match_selector(point, 'meta.parens'):
+        begin = point
+        while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
+            begin -= 1
+        end = point + 1
+        while end < view.size() and view.match_selector(end, 'meta.parens'):
+            end += 1
+        return sublime.Region(begin, end)
 
 def namespace(view, point):
     ns = None
+    # forms = view.find_by_selector("meta.parens")
     for region in view.find_by_selector("entity.name"):
         if region.end() <= point:
-            form = topmost_form(view, region.begin())
-            if re.match(r"\([\s,]*ns[\s,]", view.substr(form)):
+            begin = region.begin()
+            while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
+                begin -= 1
+            if re.match(r"\([\s,]*ns[\s,]", view.substr(sublime.Region(begin, region.begin()))):
+            # form = topmost_form(view, region.begin())
+            # if re.match(r"\([\s,]*ns[\s,]", view.substr(form)):
                 ns = view.substr(region)
         else:
             break
