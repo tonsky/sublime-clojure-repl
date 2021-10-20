@@ -272,6 +272,31 @@ class EvalSelectionCommand(sublime_plugin.TextCommand):
             and len(self.view.sel()) == 1 \
             and not self.view.sel()[0].empty()
 
+class EvalBufferCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        region = sublime.Region(0, view.size())
+        conn.pending_id = conn.next_id
+        conn.next_id += 1
+        msg = {"op":      "load-file",
+               "file":    view.substr(region),
+               "session": conn.session,
+               "id":      conn.pending_id,
+               "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
+               "nrepl.middleware.print/quota": 300}
+        if view.file_name():
+            path, name = os.path.split(view.file_name())
+            msg["file-path"] = path
+            msg["file-name"] = name
+        conn.send(msg)
+        conn.clear_evals_intersecting(view, region)
+        conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
+        
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and conn.pending_id == None
+
 class ClearEvalsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         conn.clear_evals_in_view(self.view)

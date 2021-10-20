@@ -25,11 +25,14 @@ In development.
 - [x] Command: Interrupt evaluation
 - [x] Send file name and position with eval
 - [x] Command: Evaluate top-level form under cursor
-- [ ] Command: Evaluate file
+- [x] Command: Evaluate buffer
 - [ ] Move colors into color scheme
 - [ ] Eval top-level non-bracketed forms (strings, symbols, regexes)
 - [x] Handle namespace-not-found
 - [ ] Handle nrepl.middleware.print/truncated-keys
+- [ ] Display full stacktrace in editor
+- [ ] Allow conditional reads in eval_buffer
+- [ ] Command: arglist and docstring for symbol under cursor
 
 ## Motivation
 

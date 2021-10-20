@@ -39,7 +39,7 @@ unresolved-symbol
 ; column reports for Unicode
 #"alkjdljl👨🏿kjlkj👨🏻‍🤝‍👨🏼ljasljlkjasjasljas\u"
 
-; two exprs
+; two forms
 (+ 1 2)(+ 3 4)
 
 ; malformed expr

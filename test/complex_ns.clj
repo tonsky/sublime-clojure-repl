@@ -5,7 +5,7 @@
 
 (ns ^{:doc "Hey!
 Nice namespace"
-:added ['asdas #regexp]
+:added ['asdas #"regexp"]
 :author "Niki Tonsky"}
   sublime-clojure-repl.test
   (:require

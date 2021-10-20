@@ -16,6 +16,10 @@
         "command": "eval_topmost_form"
     },
     {
+        "caption": "Clojure REPL: Eval Buffer",
+        "command": "eval_buffer"
+    },
+    {
         "caption": "Clojure REPL: Clear evaluation results",
         "command": "clear_evals"
     },
