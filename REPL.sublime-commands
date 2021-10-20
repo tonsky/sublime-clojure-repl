@@ -12,6 +12,10 @@
         "command": "eval_selection"
     },
     {
+        "caption": "Clojure REPL: Eval Topmost Form",
+        "command": "eval_topmost_form"
+    },
+    {
         "caption": "Clojure REPL: Clear evaluation results",
         "command": "clear_evals"
     },

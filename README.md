@@ -24,7 +24,7 @@ In development.
 - [x] Identify namespace of a file
 - [x] Command: Interrupt evaluation
 - [x] Send file name and position with eval
-- [ ] Command: Evaluate top-level form under cursor
+- [x] Command: Evaluate top-level form under cursor
 - [ ] Command: Evaluate file
 - [ ] Move colors into color scheme
 - [ ] Eval top-level non-bracketed forms (strings, symbols, regexes)

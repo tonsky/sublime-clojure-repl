@@ -227,33 +227,50 @@ class DisconnectCommand(sublime_plugin.ApplicationCommand):
     def is_enabled(self):
         return conn.socket != None
 
+def eval(view, region):
+    conn.pending_id = conn.next_id
+    conn.next_id += 1
+    code = view.substr(region)
+    (line, column) = view.rowcol_utf16(region.begin())
+    msg = {"op":      "eval",
+           "code":    code,
+           "ns":      namespace(view, region.begin()) or 'user',
+           "line":    line + 1,
+           "column":  column + 1,
+           "session": conn.session,
+           "id":      conn.pending_id,
+           "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
+           "nrepl.middleware.print/quota": 300}
+    if view.file_name():
+        msg["file"] = view.file_name()
+    conn.send(msg)
+    conn.clear_evals_intersecting(view, region)
+    conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
+
+class EvalTopmostFormCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        point = self.view.sel()[0].begin()
+        region = topmost_form(self.view, point)
+        if region:
+            eval(self.view, region)
+
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and conn.pending_id == None \
+            and len(self.view.sel()) == 1
+
 class EvalSelectionCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        view = self.view
-        conn.pending_id = conn.next_id
-        conn.next_id += 1
-        region = view.sel()[0]
-        code = view.substr(region) # TODO multiple selections?
-        (line, column) = view.rowcol_utf16(region.begin())
-        msg = {"op":      "eval",
-               "code":    code,
-               "ns":      namespace(view, region.begin()) or 'user',
-               "line":    line + 1,
-               "column":  column + 1,
-               "session": conn.session,
-               "id":      conn.pending_id,
-               "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
-               "nrepl.middleware.print/quota": 300}
-        if view.file_name():
-            msg["file"] = view.file_name()
-        conn.send(msg)
-        conn.clear_evals_intersecting(view, region)
-        conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
+        region = self.view.sel()[0]
+        eval(self.view, region)
         
     def is_enabled(self):
         return conn.socket != None \
             and conn.session != None \
-            and conn.pending_id == None
+            and conn.pending_id == None \
+            and len(self.view.sel()) == 1 \
+            and not self.view.sel()[0].empty()
 
 class ClearEvalsCommand(sublime_plugin.TextCommand):
     def run(self, edit):

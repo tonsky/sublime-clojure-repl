@@ -40,7 +40,7 @@ unresolved-symbol
 #"alkjdljl👨🏿kjlkj👨🏻‍🤝‍👨🏼ljasljlkjasjasljas\u"
 
 ; two exprs
-(+ 1 2) (+ 3 4)
+(+ 1 2)(+ 3 4)
 
 ; malformed expr
 (+ 1
