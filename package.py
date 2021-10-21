@@ -1,4 +1,4 @@
-import json, os, re, socket, sublime, sublime_plugin, threading
+import html, json, os, re, socket, sublime, sublime_plugin, threading
 from collections import defaultdict
 from dataclasses import dataclass
 from .src import bencode
@@ -88,6 +88,51 @@ class SocketIO:
         self.pos = end
         return self.buffer[begin:end]
 
+def format_lookup(info):
+    ns = info.get('ns')
+    name = info['name']
+    file = info.get('file')
+    arglists = info.get('arglists')
+    forms = info.get('forms')
+    doc = info.get('doc')
+
+    body = """<body>
+              <style>
+                body { padding: 0; margin: 0; }
+                a { text-decoration: none; }
+                p { margin: 0; padding: .25rem .5rem; }
+                .arglists { color: color(var(--foreground) alpha(0.5)); }
+              </style>"""
+
+    body += "<p>"
+    if file:
+        body += f"<a href='{file}'>"
+    if ns:
+        body += html.escape(ns) + "/"
+    body += html.escape(name)
+    if file:
+        body += f"</a>"
+    body += "</p>"
+
+    if arglists:
+        body += f'<p class="arglists">{html.escape(arglists.strip("()"))}</p>'
+
+    if forms:
+        def format_form(form):
+            if isinstance(form, str):
+                return form
+            else:
+                return "(" + " ".join([format_form(x) for x in form]) + ")"
+        body += '<p class="arglists">'
+        body += html.escape(" ".join([format_form(form) for form in forms]))
+        body += "</p>"
+
+    if doc:
+        body += "<p>" + html.escape(doc).replace("\n", "<br/>") + "</p>"
+
+    body += "</body>"
+    return body
+
 def handle_msg(msg):
     print("<<<", msg)
 
@@ -143,6 +188,15 @@ def handle_msg(msg):
 
     elif "root-ex" in msg:
         conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
+
+    elif "info" in msg:
+        info = msg["info"]
+        view = sublime.active_window().active_view() if sublime.active_window() else None
+        if view:
+            if info:
+                view.show_popup(format_lookup(info), max_width=1024)
+            else:
+                view.show_popup("Not found")
 
     elif "status" in msg and "namespace-not-found" in msg["status"]:
         conn.add_eval(id, view, region, 'region.redish', f'Namespace not found: {msg["ns"]}', '#DD1730')
@@ -324,13 +378,47 @@ class InterruptEvalCommand(sublime_plugin.TextCommand):
             and conn.session != None \
             and conn.pending_id != None
 
+class LookupSymbolCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        region = self.view.sel()[0]
+        if region.empty():
+            point = region.begin()
+            if view.match_selector(point, 'source.symbol.clojure'):
+                region = self.view.extract_scope(point)
+            elif point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
+                region = self.view.extract_scope(point - 1)
+        if not region.empty():
+            conn.send({"op":      "lookup",
+                       "sym":     view.substr(region),
+                       "session": conn.session,
+                       "id":      conn.next_id,
+                       "ns":      namespace(view, region.begin()) or 'user'})
+            conn.next_id += 1
+
+    def is_enabled(self):
+        if conn.socket == None or conn.session == None:
+            return False
+        view = self.view
+        if len(view.sel()) > 1:
+            return False
+        region = view.sel()[0]
+        if not region.empty():
+            return True
+        point = region.begin()
+        if view.match_selector(point, 'source.symbol.clojure'):
+            return True
+        if point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
+            return True
+        return False
+
 class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):
         conn.refresh_status()
 
 def plugin_loaded():
     connect('localhost', 5555) # FIXME
-    pass
+    # pass
 
 def plugin_unloaded():
     conn.disconnect()

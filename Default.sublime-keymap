@@ -1,12 +1,12 @@
 [{"keys": ["super+enter"],
   "command": "eval_selection",
-  "context": [{"key": "selection_empty", "operator": "equal", "operand": false, "match_all": true},
-              {"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+  "context": [{"key": "selection_empty", "operator": "equal", "operand": false},
+              {"key": "selector", "operator": "equal", "operand": "source.clojurec", "match_all": true}]},
 
  {"keys": ["super+enter"],
   "command": "eval_topmost_form",
-  "context": [{"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
-              {"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+  "context": [{"key": "selection_empty", "operator": "equal", "operand": true},
+              {"key": "selector", "operator": "equal", "operand": "source.clojurec", "match_all": true}]},
 
  {"keys": ["super+shift+enter"],
   "command": "eval_buffer",
@@ -18,5 +18,9 @@
 
  {"keys": ["ctrl+c"],
   "command": "interrupt_eval",
+  "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+ 
+ {"keys": ["ctrl+d"],
+  "command": "lookup_symbol",
   "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
 ]

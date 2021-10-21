@@ -19,3 +19,9 @@ Nice namespace"
 
 (defn fun []
   *ns*)
+
+(defn f2
+  "Test function"
+  ([] (f2 1))
+  ([a] (f2 1 a))
+  ([a & rest] (println a rest)))

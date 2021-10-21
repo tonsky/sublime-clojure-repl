@@ -26,7 +26,7 @@ In development.
 - [x] Send file name and position with eval
 - [x] Command: Evaluate top-level form under cursor
 - [x] Command: Evaluate buffer
-- [ ] Command: arglist and docstring for symbol under cursor
+- [x] Command: arglist and docstring for symbol under cursor
 - [ ] Include syntax highlighting into the package
 - [ ] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
@@ -38,6 +38,7 @@ In development.
 - [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Handle multiple results returned from multiple forms at once
 - [ ] Eval second topmost form inside (comment)
+- [ ] Handle multiple evals on the same line
 
 ## Motivation
 

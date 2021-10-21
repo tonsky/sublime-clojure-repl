@@ -29,6 +29,21 @@
 (throw (ex-info "abc" {:a 1}))
 (throw (Exception. "ex with msg"))
 
+; lookups
+var
+if
+cond
+*out*
+*warn-on-reflection*
+set!
+clojure.set/join
+(def ^{:doc "Doc"} const 0)
+(defn f2
+  "Test function"
+  ([] (f2 1))
+  ([a] (f2 1 a))
+  ([a & rest] (println a rest)))
+
 ; wrapped exception (RuntimeException inside CompilerException)
 unresolved-symbol
 

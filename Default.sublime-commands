@@ -27,4 +27,8 @@
         "caption": "Clojure REPL: Interrupt current evaluation",
         "command": "interrupt_eval"
     },
+    {
+        "caption": "Clojure REPL: Lookup Symbol",
+        "command": "lookup_symbol"
+    },
 ]
