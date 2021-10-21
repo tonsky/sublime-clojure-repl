@@ -27,8 +27,10 @@ In development.
 - [x] Command: Evaluate top-level form under cursor
 - [x] Command: Evaluate buffer
 - [x] Command: arglist and docstring for symbol under cursor
+- [x] Remove results when region is modified
+- [ ] Display full stacktrace in editor
+- [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Include syntax highlighting into the package
-- [ ] Remove results when region is modified
 - [x] Handle eval comments
 - [x] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
@@ -36,8 +38,6 @@ In development.
 - [ ] Eval top-level custom reader tags and stuff with meta
 - [x] Handle namespace-not-found
 - [ ] Handle nrepl.middleware.print/truncated-keys
-- [ ] Display full stacktrace in editor
-- [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Handle multiple results returned from multiple forms at once
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line

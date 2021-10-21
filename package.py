@@ -10,6 +10,7 @@ class Eval:
     key: str
     view: sublime.View
     scope: str
+    code: str
 
 class Connection:
     def __init__(self):
@@ -66,6 +67,15 @@ class Connection:
             eval.view.erase_regions(eval.key)
             del self.evals[id]
 
+    def clear_modified(self, view):
+        for id, eval in list(self.evals.items()):
+            if view == eval.view:
+                regions = view.get_regions(eval.key)
+                if regions and len(regions) >= 1:
+                    if eval.code != view.substr(regions[0]):
+                        eval.view.erase_regions(eval.key)
+                        del self.evals[id]
+
     def add_eval(self, id, view, region, scope, text = None, color = None):
         if region:
             key = f"{ns}.eval-{id}"
@@ -74,7 +84,7 @@ class Connection:
             else:
                 view.erase_regions(key)
                 view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL)
-            self.evals[id] = Eval(key, view, scope)
+            self.evals[id] = Eval(key, view, scope, view.substr(region))
 
     def disconnect(self):
         if self.socket:
@@ -440,6 +450,9 @@ class LookupSymbolCommand(sublime_plugin.TextCommand):
 class EventListener(sublime_plugin.EventListener):
     def on_activated(self, view):
         conn.refresh_status()
+
+    def on_modified_async(self, view):
+        conn.clear_modified(view)
 
 def plugin_loaded():
     connect('localhost', 5555) # FIXME
