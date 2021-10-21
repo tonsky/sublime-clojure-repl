@@ -29,6 +29,7 @@ In development.
 - [x] Command: arglist and docstring for symbol under cursor
 - [ ] Include syntax highlighting into the package
 - [ ] Remove results when region is modified
+- [x] Handle eval comments
 - [x] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
@@ -40,7 +41,6 @@ In development.
 - [ ] Handle multiple results returned from multiple forms at once
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
-- [ ] Handle eval comments
 
 ## Motivation
 

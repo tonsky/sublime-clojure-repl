@@ -60,10 +60,20 @@ class Connection:
                 eval.view.erase_regions(eval.key)
                 del self.evals[id]
 
-    def add_eval(self, id, view, region, scope, text, color):
+    def clear_eval(self, id):
+        if id in self.evals:
+            eval = self.evals[id]
+            eval.view.erase_regions(eval.key)
+            del self.evals[id]
+
+    def add_eval(self, id, view, region, scope, text = None, color = None):
         if region:
             key = f"{ns}.eval-{id}"
-            view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
+            if text and color:
+                view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
+            else:
+                view.erase_regions(key)
+                view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL)
             self.evals[id] = Eval(key, view, scope)
 
     def disconnect(self):
@@ -151,6 +161,10 @@ def handle_msg(msg):
 
     if id and id == conn.pending_id and "status" in msg and "done" in msg["status"]:
         conn.pending_id = None
+        if id in conn.evals:
+            eval = conn.evals[id]
+            if eval.scope == 'region.bluish':
+                conn.clear_eval(id)
 
     if msg.get("id") == 1 and "new-session" in msg:
         conn.session = msg["new-session"]
