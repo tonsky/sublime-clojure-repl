@@ -28,7 +28,7 @@ In development.
 - [x] Command: Evaluate buffer
 - [x] Command: arglist and docstring for symbol under cursor
 - [ ] Include syntax highlighting into the package
-- [ ] Allow conditional reads in eval_buffer
+- [x] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
 - [ ] Eval top-level custom reader tags and stuff with meta
@@ -39,6 +39,7 @@ In development.
 - [ ] Handle multiple results returned from multiple forms at once
 - [ ] Eval second topmost form inside (comment)
 - [ ] Handle multiple evals on the same line
+- [ ] Remove results when region is modified
 
 ## Motivation
 
@@ -60,6 +61,7 @@ In development.
 - Pro: Network-friendly
 - Pro: Can interrupt evaluation
 - Pro: Very full-featured
+- Pro: Can display results inline
 - Con: Requires separate tab
 - Con: Requires custom Clojure syntax
 - Con: Can’t eval if other evaluation pending

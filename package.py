@@ -354,6 +354,8 @@ class EvalBufferCommand(sublime_plugin.TextCommand):
             path, name = os.path.split(view.file_name())
             msg["file-path"] = path
             msg["file-name"] = name
+        else:
+            msg["file-name"] = "NO_SOURCE_FILE.cljc"
         conn.send(msg)
         conn.clear_evals_intersecting(view, region)
         conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')

@@ -11,9 +11,6 @@
 ; infinite sequence
 (range) 
 
-; reader conditionals
-#?(:clj (+ 1 2))
-
 ; print
 (println "Hello, Sublime!")
 (.println System/out "System.out.println")
