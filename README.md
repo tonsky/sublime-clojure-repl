@@ -38,7 +38,7 @@ In development.
 - [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Handle multiple results returned from multiple forms at once
 - [ ] Eval second topmost form inside (comment)
-- [ ] Handle multiple evals on the same line
+- [x] Clear previous evals on the same line
 - [ ] Remove results when region is modified
 
 ## Motivation

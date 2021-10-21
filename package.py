@@ -53,9 +53,10 @@ class Connection:
                 del self.evals[id]
 
     def clear_evals_intersecting(self, view, region):
+        extended_region = view.line(region)
         for id, eval in list(self.evals.items()):
             regions = eval.view.get_regions(eval.key)
-            if regions and len(regions) >= 1 and region.intersects(regions[0]):
+            if regions and len(regions) >= 1 and extended_region.intersects(regions[0]):
                 eval.view.erase_regions(eval.key)
                 del self.evals[id]
 
