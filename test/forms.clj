@@ -69,6 +69,7 @@ symbol
 #"regex"
 @deref
 #'var
+#_"hello"
 #inst "2021-10-20"
 #uuid "d3e13f30-85b1-4334-9b67-5e6d580e266c"
 #p "abc"
@@ -86,6 +87,8 @@ symbol
 (comment
   "hello"
   (println "hello"))
+(comment "hello")
+(comment "hello" )
 
 ; column reports for Unicode
 #"alkjdljl👨🏿kjlkj👨🏻‍🤝‍👨🏼ljasljlkjasjasljas\u"

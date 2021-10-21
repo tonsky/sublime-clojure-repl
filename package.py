@@ -300,19 +300,27 @@ def eval(view, region):
     conn.clear_evals_intersecting(view, region)
     conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
 
-def topmost_form(view, point):
-    scope = view.scope_name(point)
-    if 'source.clojurec ' == scope and point > 0:
+def expand_until(view, point, scopes):
+    if view.scope_name(point) in scopes and point > 0:
         point = point - 1
-        scope = view.scope_name(point)
-    if 'source.clojurec ' != scope:
+    if view.scope_name(point) not in scopes:
         begin = point
-        while begin > 0 and view.scope_name(begin - 1) != 'source.clojurec ':
+        while begin > 0 and view.scope_name(begin - 1) not in scopes:
             begin -= 1
         end = point
-        while end < view.size() and view.scope_name(end) != 'source.clojurec ':
+        while end < view.size() and view.scope_name(end) not in scopes:
             end += 1
         return sublime.Region(begin, end)
+
+def topmost_form(view, point):
+    region = expand_until(view, point, {'source.clojurec '})
+    if region \
+       and view.substr(region).startswith("(comment") \
+       and point >= region.begin() + len("(comment ") \
+       and point < region.end():
+        return expand_until(view, point, {'source.clojurec meta.parens.clojure ',
+                                          'source.clojurec meta.parens.clojure punctuation.section.parens.end.clojure '})
+    return region
 
 class EvalTopmostFormCommand(sublime_plugin.TextCommand):
     def run(self, edit):

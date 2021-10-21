@@ -28,6 +28,7 @@ In development.
 - [x] Command: Evaluate buffer
 - [x] Command: arglist and docstring for symbol under cursor
 - [ ] Include syntax highlighting into the package
+- [ ] Remove results when region is modified
 - [x] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
@@ -37,9 +38,9 @@ In development.
 - [ ] Display full stacktrace in editor
 - [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Handle multiple results returned from multiple forms at once
-- [ ] Eval second topmost form inside (comment)
+- [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
-- [ ] Remove results when region is modified
+- [ ] Handle eval comments
 
 ## Motivation
 
