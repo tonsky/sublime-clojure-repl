@@ -13,6 +13,7 @@ In development.
 - [x] Command: Connect to nREPL
 - [x] Parse bencode
 - [x] Command: Disconnect
+- [x] Command: Reconnect
 - [x] Detect socket close
 - [x] Redirect stdout & stderr to System.out / System.err
 - [x] Middleware for error info
@@ -28,7 +29,7 @@ In development.
 - [x] Command: Evaluate buffer
 - [x] Command: arglist and docstring for symbol under cursor
 - [x] Remove results when region is modified
-- [ ] Display full stacktrace in editor
+- [x] Display full stacktrace in editor
 - [x] Detect and highlight error position when evaluating a buffer
 - [ ] Include syntax highlighting into the package
 - [ ] Move colors into color scheme
@@ -42,6 +43,8 @@ In development.
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
 - [ ] Clean up formatting of Clojure docstrings
+- [ ] Better formatter for exceptions
+- [ ] When evaling form, source file name gets lost in stacktraces
 
 ## Motivation
 
@@ -121,7 +124,6 @@ In development.
 - Con: no upgrade path from Socket Server
 - Con: error reporting lacks exception message and ex-data
 - Con: middlewares are global
-
 
 ## Credits
 

@@ -2,6 +2,7 @@
   (:require
    [clojure.main :as main]
    [clojure.stacktrace :as stacktrace]
+   [clojure.string :as str]
    [nrepl.middleware :as middleware]
    [nrepl.middleware.print :as print]
    [nrepl.middleware.caught :as caught]
@@ -19,6 +20,14 @@
 (defn print-root-trace [^Throwable t]
   (stacktrace/print-stack-trace (root-cause t)))
 
+(defn trace [^Throwable t]
+  (let [trace (with-out-str
+                (.printStackTrace t (java.io.PrintWriter. *out*)))
+        idx   (str/index-of trace "\n\tat clojure.lang.Compiler.eval(Compiler.java:")]
+    (if (pos? idx)
+      (subs trace 0 idx)
+      trace)))
+
 (defn- caught-transport [{:keys [transport] :as msg}]
   (reify Transport
     (recv [this]
@@ -35,7 +44,8 @@
             resp' (cond-> resp
                     root (assoc
                            ::root-ex-msg   (.getMessage root)
-                           ::root-ex-class (.getSimpleName (class root)))
+                           ::root-ex-class (.getSimpleName (class root))
+                           ::trace         (trace root))
                     loc  (merge loc)
                     data (update ::print/keys (fnil conj []) ::root-ex-data)
                     data (assoc ::root-ex-data data))]

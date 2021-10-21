@@ -8,6 +8,10 @@
         "command": "disconnect"
     },
     {
+        "caption": "Clojure REPL: Reconnect",
+        "command": "reconnect"
+    },
+    {
         "caption": "Clojure REPL: Eval Selection",
         "command": "eval_selection"
     },
@@ -30,5 +34,9 @@
     {
         "caption": "Clojure REPL: Lookup Symbol",
         "command": "lookup_symbol"
+    },
+    {
+        "caption": "Clojure REPL: Toggle Stacktrace",
+        "command": "toggle_trace"
     },
 ]

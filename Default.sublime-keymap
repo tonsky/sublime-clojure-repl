@@ -23,4 +23,8 @@
  {"keys": ["ctrl+d"],
   "command": "lookup_symbol",
   "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+
+ {"keys": ["ctrl+e"],
+  "command": "toggle_trace",
+  "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
 ]

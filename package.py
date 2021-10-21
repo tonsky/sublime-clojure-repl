@@ -5,12 +5,24 @@ from .src import bencode
 
 ns = 'sublime-clojure-repl'
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True)
 class Eval:
     key: str
     view: sublime.View
     scope: str
     code: str
+    trace: str
+    trace_id: int = None
+
+    def region(self):
+        regions = self.view.get_regions(self.key)
+        if regions and len(regions) >= 1:
+            return regions[0]
+
+    def erase(self):
+        self.view.erase_regions(self.key)
+        if self.trace_id:
+            self.view.erase_phantom_by_id(self.trace_id)
 
 class Connection:
     def __init__(self):
@@ -44,39 +56,39 @@ class Connection:
 
     def clear_evals(self):
         for id, eval in self.evals.items():
-            eval.view.erase_regions(eval.key)
+            eval.erase()
         self.evals.clear()
 
     def clear_evals_in_view(self, view):
         for id, eval in list(self.evals.items()):
             if eval.view == view and eval.scope != 'region.bluish':
-                eval.view.erase_regions(eval.key)
+                eval.erase()
                 del self.evals[id]
 
     def clear_evals_intersecting(self, view, region):
         extended_region = view.line(region)
         for id, eval in list(self.evals.items()):
-            regions = eval.view.get_regions(eval.key)
-            if regions and len(regions) >= 1 and extended_region.intersects(regions[0]):
-                eval.view.erase_regions(eval.key)
+            region = eval.region()
+            if region and extended_region.intersects(region):
+                eval.erase()
                 del self.evals[id]
 
     def clear_eval(self, id):
         if id in self.evals:
             eval = self.evals[id]
-            eval.view.erase_regions(eval.key)
+            eval.erase()
             del self.evals[id]
 
     def clear_modified(self, view):
         for id, eval in list(self.evals.items()):
             if view == eval.view:
-                regions = view.get_regions(eval.key)
-                if regions and len(regions) >= 1:
-                    if eval.code != view.substr(regions[0]):
-                        eval.view.erase_regions(eval.key)
+                region = eval.region()
+                if region:
+                    if eval.code != view.substr(region):
+                        eval.erase()
                         del self.evals[id]
 
-    def add_eval(self, id, view, region, scope, text = None, color = None):
+    def add_eval(self, id, view, region, scope, text = None, color = None, trace = None):
         if region:
             key = f"{ns}.eval-{id}"
             if text and color:
@@ -84,12 +96,12 @@ class Connection:
             else:
                 view.erase_regions(key)
                 view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL)
-            self.evals[id] = Eval(key, view, scope, view.substr(region))
+            self.evals[id] = Eval(key, view, scope, view.substr(region), trace)
 
     def disconnect(self):
         if self.socket:
             self.socket.close()
-            self.reset()            
+            self.reset()
 
 conn = Connection()
 
@@ -165,9 +177,7 @@ def handle_msg(msg):
         if id in conn.evals:
             eval = conn.evals[id]
             view = eval.view
-            regions = view.get_regions(eval.key)
-            if regions and len(regions) >= 1:
-                region = regions[0]
+            region = eval.region()
 
     if id and id == conn.pending_id and "status" in msg and "done" in msg["status"]:
         conn.pending_id = None
@@ -217,9 +227,7 @@ def handle_msg(msg):
             column = msg["sublime-clojure-repl.middleware/column"]
             point = view.text_point_utf16(line - 1, column - 1, clamp_column = True)
             region = sublime.Region(point, view.line(point).end())
-            conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
-        else:
-            conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
+        conn.add_eval(id, view, region, 'region.redish', text, '#DD1730', trace = msg.get("sublime-clojure-repl.middleware/trace"))
 
     elif "root-ex" in msg:
         conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
@@ -310,6 +318,14 @@ class ConnectCommand(sublime_plugin.ApplicationCommand):
 class DisconnectCommand(sublime_plugin.ApplicationCommand):
     def run(self):
         conn.disconnect()
+
+    def is_enabled(self):
+        return conn.socket != None
+
+class ReconnectCommand(sublime_plugin.ApplicationCommand):
+    def run(self):
+        conn.disconnect()
+        connect(conn.host, conn.port)
 
     def is_enabled(self):
         return conn.socket != None
@@ -422,6 +438,40 @@ class InterruptEvalCommand(sublime_plugin.TextCommand):
         return conn.socket != None \
             and conn.session != None \
             and conn.pending_id != None
+
+class ToggleTraceCommand(sublime_plugin.TextCommand):
+    def find_eval(self, view, point):
+        for eval in conn.evals.values():
+            if eval.view == view:
+                region = eval.region()
+                if region and region.contains(point):
+                    return eval
+
+    def run(self, edit):
+        view = self.view
+        point = view.sel()[0].begin()
+        eval = self.find_eval(view, point)
+        if eval and eval.trace:
+            if eval.trace_id:
+                view.erase_phantom_by_id(eval.trace_id)
+                eval.trace_id = None
+            else:
+                settings = view.settings()
+                top = settings.get('line_padding_top', 0)
+                bottom = settings.get('line_padding_bottom', 0)
+                body = f"""<style>
+                    body {{ background-color: #F7D3D5; padding-top: {top}px; padding-bottom: {bottom}px; }}
+                    p {{ margin: 0; padding-top: {top}px; padding-bottom: {bottom}px; }}
+                </style>"""
+                for line in html.escape(eval.trace).split("\n"):
+                    body += "<p>" + line.replace("\t", "&nbsp;&nbsp;") + "</p>"
+                eval.trace_id = view.add_phantom(eval.key, sublime.Region(point, point), body, sublime.LAYOUT_BLOCK)
+        
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and len(self.view.sel()) == 1
+
 
 class LookupSymbolCommand(sublime_plugin.TextCommand):
     def run(self, edit):
