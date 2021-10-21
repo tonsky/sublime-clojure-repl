@@ -28,10 +28,15 @@
     (send [this {throwable ::caught/throwable :as resp}]
       (let [root  (root-cause throwable)
             data  (ex-data root)
+            loc   (when (instance? clojure.lang.Compiler$CompilerException throwable)
+                    {::line   (or (.-line throwable) (:clojure.error/line (ex-data throwable)))
+                     ::column (:clojure.error/column (ex-data throwable))
+                     ::source (or (.-source throwable) (:clojure.error/source (ex-data throwable)))})
             resp' (cond-> resp
                     root (assoc
                            ::root-ex-msg   (.getMessage root)
                            ::root-ex-class (.getSimpleName (class root)))
+                    loc  (merge loc)
                     data (update ::print/keys (fnil conj []) ::root-ex-data)
                     data (assoc ::root-ex-data data))]
         (transport/send transport resp'))

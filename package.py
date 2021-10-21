@@ -212,7 +212,14 @@ def handle_msg(msg):
         text = msg["sublime-clojure-repl.middleware/root-ex-class"] + ": " + msg["sublime-clojure-repl.middleware/root-ex-msg"]
         if "sublime-clojure-repl.middleware/root-ex-data" in msg:
             text += " " + msg["sublime-clojure-repl.middleware/root-ex-data"]
-        conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
+        if "sublime-clojure-repl.middleware/line" in msg and "sublime-clojure-repl.middleware/column" in msg:
+            line = msg["sublime-clojure-repl.middleware/line"]
+            column = msg["sublime-clojure-repl.middleware/column"]
+            point = view.text_point_utf16(line - 1, column - 1, clamp_column = True)
+            region = sublime.Region(point, view.line(point).end())
+            conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
+        else:
+            conn.add_eval(id, view, region, 'region.redish', text, '#DD1730')
 
     elif "root-ex" in msg:
         conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
@@ -388,7 +395,7 @@ class EvalBufferCommand(sublime_plugin.TextCommand):
                "nrepl.middleware.print/quota": 300}
         if view.file_name():
             path, name = os.path.split(view.file_name())
-            msg["file-path"] = path
+            msg["file-path"] = view.file_name()
             msg["file-name"] = name
         else:
             msg["file-name"] = "NO_SOURCE_FILE.cljc"

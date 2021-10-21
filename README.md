@@ -29,7 +29,7 @@ In development.
 - [x] Command: arglist and docstring for symbol under cursor
 - [x] Remove results when region is modified
 - [ ] Display full stacktrace in editor
-- [ ] Detect and highlight error position when evaluating a buffer
+- [x] Detect and highlight error position when evaluating a buffer
 - [ ] Include syntax highlighting into the package
 - [ ] Move colors into color scheme
 - [x] Handle eval comments
@@ -41,8 +41,17 @@ In development.
 - [ ] Handle multiple results returned from multiple forms at once
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
+- [ ] Clean up formatting of Clojure docstrings
 
 ## Motivation
+
+### Differences from Tutkain
+
+- Can eval non well-formed forms (e.g. `(+ 1 2`)
+- Can eval infinite sequences
+- Does not have separate REPL panel
+- Redirects all `*out*`/`*err*` to `System.out`/`System.err`
+- Can keep multiple eval results on a screen simultaneously
 
 ### Clients
 
@@ -112,6 +121,7 @@ In development.
 - Con: no upgrade path from Socket Server
 - Con: error reporting lacks exception message and ex-data
 - Con: middlewares are global
+
 
 ## Credits
 
