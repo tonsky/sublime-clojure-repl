@@ -176,6 +176,9 @@ def handle_msg(msg):
             if eval.scope == 'region.bluish':
                 conn.clear_eval(id)
 
+    for key in msg.get('nrepl.middleware.print/truncated-keys', []):
+        msg[key] += '...'
+
     if msg.get("id") == 1 and "new-session" in msg:
         conn.session = msg["new-session"]
         with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:

@@ -26,6 +26,10 @@
 (throw (ex-info "abc" {:a 1}))
 (throw (Exception. "ex with msg"))
 
+; truncating
+(range) 
+(throw (ex-info "abc" {:a (range 300)}))
+
 ; lookups
 var
 if

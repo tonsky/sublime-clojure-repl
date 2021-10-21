@@ -31,13 +31,13 @@ In development.
 - [ ] Display full stacktrace in editor
 - [ ] Detect and highlight error position when evaluating a buffer
 - [ ] Include syntax highlighting into the package
+- [ ] Move colors into color scheme
 - [x] Handle eval comments
 - [x] Allow conditional reads in eval_buffer
-- [ ] Move colors into color scheme
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
 - [ ] Eval top-level custom reader tags and stuff with meta
 - [x] Handle namespace-not-found
-- [ ] Handle nrepl.middleware.print/truncated-keys
+- [x] Handle nrepl.middleware.print/truncated-keys
 - [ ] Handle multiple results returned from multiple forms at once
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
