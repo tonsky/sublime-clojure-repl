@@ -1,0 +1,22 @@
+[{"keys": ["super+enter"],
+  "command": "eval_selection",
+  "context": [{"key": "selection_empty", "operator": "equal", "operand": false, "match_all": true},
+              {"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+
+ {"keys": ["super+enter"],
+  "command": "eval_topmost_form",
+  "context": [{"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+              {"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+
+ {"keys": ["super+shift+enter"],
+  "command": "eval_buffer",
+  "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+
+ {"keys": ["ctrl+l"],
+  "command": "clear_evals",
+  "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+
+ {"keys": ["ctrl+c"],
+  "command": "interrupt_eval",
+  "context": [{"key": "selector", "operator": "equal", "operand": "source.clojurec"}]},
+]

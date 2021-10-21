@@ -60,9 +60,10 @@ class Connection:
                 del self.evals[id]
 
     def add_eval(self, id, view, region, scope, text, color):
-        key = f"{ns}.eval-{id}"
-        view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
-        self.evals[id] = Eval(key, view, scope)
+        if region:
+            key = f"{ns}.eval-{id}"
+            view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
+            self.evals[id] = Eval(key, view, scope)
 
     def disconnect(self):
         if self.socket:
@@ -172,27 +173,14 @@ def connect(host, port):
         conn.socket = None
         conn.set_status(f"🌑 {host}:{port}")
 
-def topmost_form(view, point):
-    if view.match_selector(point, 'meta.parens'):
-        begin = point
-        while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
-            begin -= 1
-        end = point + 1
-        while end < view.size() and view.match_selector(end, 'meta.parens'):
-            end += 1
-        return sublime.Region(begin, end)
-
 def namespace(view, point):
     ns = None
-    # forms = view.find_by_selector("meta.parens")
     for region in view.find_by_selector("entity.name"):
         if region.end() <= point:
             begin = region.begin()
             while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
                 begin -= 1
             if re.match(r"\([\s,]*ns[\s,]", view.substr(sublime.Region(begin, region.begin()))):
-            # form = topmost_form(view, region.begin())
-            # if re.match(r"\([\s,]*ns[\s,]", view.substr(form)):
                 ns = view.substr(region)
         else:
             break
@@ -256,6 +244,20 @@ def eval(view, region):
     conn.send(msg)
     conn.clear_evals_intersecting(view, region)
     conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
+
+def topmost_form(view, point):
+    scope = view.scope_name(point)
+    if 'source.clojurec ' == scope and point > 0:
+        point = point - 1
+        scope = view.scope_name(point)
+    if 'source.clojurec ' != scope:
+        begin = point
+        while begin > 0 and view.scope_name(begin - 1) != 'source.clojurec ':
+            begin -= 1
+        end = point
+        while end < view.size() and view.scope_name(end) != 'source.clojurec ':
+            end += 1
+        return sublime.Region(begin, end)
 
 class EvalTopmostFormCommand(sublime_plugin.TextCommand):
     def run(self, edit):

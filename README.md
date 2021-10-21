@@ -26,13 +26,18 @@ In development.
 - [x] Send file name and position with eval
 - [x] Command: Evaluate top-level form under cursor
 - [x] Command: Evaluate buffer
+- [ ] Command: arglist and docstring for symbol under cursor
+- [ ] Include syntax highlighting into the package
+- [ ] Allow conditional reads in eval_buffer
 - [ ] Move colors into color scheme
-- [ ] Eval top-level non-bracketed forms (strings, symbols, regexes)
+- [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
+- [ ] Eval top-level custom reader tags and stuff with meta
 - [x] Handle namespace-not-found
 - [ ] Handle nrepl.middleware.print/truncated-keys
 - [ ] Display full stacktrace in editor
-- [ ] Allow conditional reads in eval_buffer
-- [ ] Command: arglist and docstring for symbol under cursor
+- [ ] Detect and highlight error position when evaluating a buffer
+- [ ] Handle multiple results returned from multiple forms at once
+- [ ] Eval second topmost form inside (comment)
 
 ## Motivation
 
