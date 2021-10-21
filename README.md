@@ -51,7 +51,7 @@ In development.
 
 *SublimeREPL*:
 
-- Just a termnial opened in a Sublime tab
+- Just a terminal opened in a Sublime tab
 - Con: Requires local lein project
 
 *Tutkain*:
