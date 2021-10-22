@@ -20,10 +20,11 @@
 (.println System/err "System.err.println")
 
 ; print in background
-(doseq [i (range 0 10)] (Thread/sleep 100) (println i))
+(doseq [i (range 0 10)] (Thread/sleep 1000) (println i))
 
 ; throw exception
-(throw (ex-info "abc" {:a 1}))
+(throw (ex-info 
+  "abc" {:a 1}))
 (throw (Exception. "ex with msg"))
 *e
 

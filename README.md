@@ -31,12 +31,11 @@ In development.
 - [x] Remove results when region is modified
 - [x] Display full stacktrace in editor
 - [x] Detect and highlight error position when evaluating a buffer
-- [ ] Include syntax highlighting into the package
-- [ ] Move colors into color scheme
+- [x] Parallel evaluation
+- [ ] Use TextChangeListener to invalidate regions
 - [x] Handle eval comments
 - [x] Allow conditional reads in eval_buffer
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
-- [ ] Eval top-level custom reader tags and stuff with meta
 - [x] Handle namespace-not-found
 - [x] Handle nrepl.middleware.print/truncated-keys
 - [ ] Handle multiple results returned from multiple forms at once
@@ -44,7 +43,24 @@ In development.
 - [x] Clear previous evals on the same line
 - [ ] Clean up formatting of Clojure docstrings
 - [ ] Better formatter for exceptions
+- [ ] Animated progress indicator
+- [ ] Option to choose between Phantoms and Region Annotations
+- [ ] Option to clone session before eval
+- [ ] Match editor line height in lookup popup
+
+Issues:
+
 - [ ] When evaling form, source file name gets lost in stacktraces
+- [ ] Eval top-level custom reader tags and stuff with meta
+- [ ] Clean up evals on view close
+- [ ] Line numbers in stacktrace seems to be 0-based
+
+Productize:
+
+- [ ] Include syntax highlighting into the package
+- [ ] Move colors into color scheme
+- [ ] Readme
+- [ ] Blog post
 
 ## Motivation
 

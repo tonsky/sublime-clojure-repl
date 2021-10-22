@@ -22,9 +22,8 @@
 
 (defn trace [^Throwable t]
   (let [trace (with-out-str
-                (.printStackTrace t (java.io.PrintWriter. *out*)))
-        idx   (str/index-of trace "\n\tat clojure.lang.Compiler.eval(Compiler.java:")]
-    (if (pos? idx)
+                (.printStackTrace t (java.io.PrintWriter. *out*)))]
+    (if-some [idx (str/index-of trace "\n\tat clojure.lang.Compiler.eval(Compiler.java:")]
       (subs trace 0 idx)
       trace)))
 

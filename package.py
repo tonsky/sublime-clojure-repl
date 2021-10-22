@@ -1,28 +1,85 @@
 import html, json, os, re, socket, sublime, sublime_plugin, threading
 from collections import defaultdict
-from dataclasses import dataclass
 from .src import bencode
+from typing import Any, Dict
 
 ns = 'sublime-clojure-repl'
 
-@dataclass(eq=True)
 class Eval:
-    key: str
-    view: sublime.View
-    scope: str
-    code: str
-    trace: str
-    trace_id: int = None
+    # class
+    next_id:   int = 10
+
+    # instance
+    id:        int
+    view:      sublime.View
+    status:    str # "clone" | "eval" | "interrupt" | "success" | "exception"
+    code:      str
+    session:   str
+    msg:       Dict[str, Any]
+    trace:     str
+    trace_key: int
+    
+    def __init__(self, view, region, status, value):
+        self.id = Eval.next_id
+        self.view = view
+        self.status = status
+        self.code = view.substr(region)
+        self.session = None
+        self.msg = None
+        self.trace = None
+        self.trace_key = None
+
+        Eval.next_id += 1
+        scope, color = self.scope_color()
+        view.add_regions(self.value_key(), [region], scope, '', sublime.DRAW_NO_FILL, [value], color)
+
+    def value_key(self):
+        return f"{ns}.eval-{self.id}"
+
+    def scope_color(self):
+        if "success" == self.status:
+            return ("region.greenish", '#7CCE9B')
+        elif "exception" == self.status:
+            return ("region.redish", '#DD1730')
+        else:
+            return ("region.bluish", '#7C9BCE')
 
     def region(self):
-        regions = self.view.get_regions(self.key)
+        regions = self.view.get_regions(self.value_key())
         if regions and len(regions) >= 1:
             return regions[0]
 
+    def update(self, status, value, region = None):
+        self.status = status
+        region = region or self.region()
+        if region:
+            scope, color = self.scope_color()
+            self.view.add_regions(self.value_key(), [region], scope, '', sublime.DRAW_NO_FILL, [value], color)            
+
+    def toggle_trace(self):
+        if self.trace:
+            if self.trace_key:
+                self.view.erase_phantom_by_id(self.trace_key)
+                self.trace_key = None
+            else:
+                settings = self.view.settings()
+                top = settings.get('line_padding_top', 0)
+                bottom = settings.get('line_padding_bottom', 0)
+                body = f"""<style>
+                    body {{ background-color: #F7D3D5; padding-top: {top}px; padding-bottom: {bottom}px; }}
+                    p {{ margin: 0; padding-top: {top}px; padding-bottom: {bottom}px; }}
+                </style>"""
+                for line in html.escape(self.trace).split("\n"):
+                    body += "<p>" + line.replace("\t", "&nbsp;&nbsp;") + "</p>"
+                region = self.region()
+                if region:
+                    point = self.view.line(region.end()).begin()
+                    self.trace_key = self.view.add_phantom(self.value_key(), sublime.Region(point, point), body, sublime.LAYOUT_BLOCK)
+
     def erase(self):
-        self.view.erase_regions(self.key)
-        if self.trace_id:
-            self.view.erase_phantom_by_id(self.trace_id)
+        self.view.erase_regions(self.value_key())
+        if self.trace_key:
+            self.view.erase_phantom_by_id(self.trace_key)
 
 class Connection:
     def __init__(self):
@@ -48,55 +105,23 @@ class Connection:
     def reset(self):
         self.socket = None
         self.reader = None
-        self.next_id = 10
-        self.pending_id = None
         self.session = None
         self.set_status('🌑 Offline')
-        self.clear_evals()
-
-    def clear_evals(self):
         for id, eval in self.evals.items():
             eval.erase()
         self.evals.clear()
 
-    def clear_evals_in_view(self, view):
+    def add_eval(self, eval):
+        self.evals[eval.id] = eval
+
+    def erase_eval(self, eval):
+        eval.erase()
+        del self.evals[eval.id]
+
+    def erase_evals(self, predicate, view = None):
         for id, eval in list(self.evals.items()):
-            if eval.view == view and eval.scope != 'region.bluish':
-                eval.erase()
-                del self.evals[id]
-
-    def clear_evals_intersecting(self, view, region):
-        extended_region = view.line(region)
-        for id, eval in list(self.evals.items()):
-            region = eval.region()
-            if region and extended_region.intersects(region):
-                eval.erase()
-                del self.evals[id]
-
-    def clear_eval(self, id):
-        if id in self.evals:
-            eval = self.evals[id]
-            eval.erase()
-            del self.evals[id]
-
-    def clear_modified(self, view):
-        for id, eval in list(self.evals.items()):
-            if view == eval.view:
-                region = eval.region()
-                if region:
-                    if eval.code != view.substr(region):
-                        eval.erase()
-                        del self.evals[id]
-
-    def add_eval(self, id, view, region, scope, text = None, color = None, trace = None):
-        if region:
-            key = f"{ns}.eval-{id}"
-            if text and color:
-                view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL, [text], color)
-            else:
-                view.erase_regions(key)
-                view.add_regions(key, [region], scope, '', sublime.DRAW_NO_FILL)
-            self.evals[id] = Eval(key, view, scope, view.substr(region), trace)
+            if (view == None or view == eval.view) and predicate(eval):
+                self.erase_eval(eval)
 
     def disconnect(self):
         if self.socket:
@@ -105,21 +130,173 @@ class Connection:
 
 conn = Connection()
 
-class SocketIO:
-    def __init__(self, socket):
-        self.socket = socket
-        self.buffer = None
-        self.pos = -1
+def handle_new_session(msg):
+    if "new-session" in msg and "id" in msg and msg["id"] in conn.evals:
+        eval = conn.evals[msg["id"]]
+        eval.session = msg["new-session"]
+        eval.msg["session"] = msg["new-session"]
+        conn.send(eval.msg)
+        eval.update("eval", "Evaluating...")
+        return True
 
-    def read(self, n):
-        if not self.buffer or self.pos >= len(self.buffer):
-            self.buffer = self.socket.recv(4096)
-            # print("<<<", self.buffer.decode())
-            self.pos = 0
-        begin = self.pos
-        end = min(begin + n, len(self.buffer))
-        self.pos = end
-        return self.buffer[begin:end]
+def handle_value(msg):
+    if "value" in msg and "id" in msg and msg["id"] in conn.evals:
+        eval = conn.evals[msg["id"]]
+        eval.update("success", msg.get("value"))
+        return True
+
+def handle_exception(msg):
+    if "id" in msg and msg["id"] in conn.evals:
+        eval = conn.evals[msg["id"]]
+        get = lambda key: msg.get(ns + ".middleware/" + key)
+        if get("root-ex-class") and get("root-ex-msg"):
+            text = get("root-ex-class") + ": " + get("root-ex-msg")
+            region = None
+            if get("root-ex-data"):
+                text += " " + get("root-ex-data")
+            if get("line") and get("column"):
+                line = get("line")
+                column = get("column")
+                point = eval.view.text_point_utf16(line - 1, column - 1, clamp_column = True)
+                region = sublime.Region(point, eval.view.line(point).end())
+            eval.trace = get("trace")
+            eval.update("exception", text, region)
+            return True
+        elif "root-ex" in msg:
+            eval.update("exception", msg["root-ex"])
+            return True
+        elif "ex" in msg:
+            eval.update("exception", msg["ex"])
+            return True        
+        elif "status" in msg and "namespace-not-found" in msg["status"]:
+            eval.update("exception", f'Namespace not found: {msg["ns"]}')
+
+def namespace(view, point):
+    ns = None
+    for region in view.find_by_selector("entity.name"):
+        if region.end() <= point:
+            begin = region.begin()
+            while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
+                begin -= 1
+            if re.match(r"\([\s,]*ns[\s,]", view.substr(sublime.Region(begin, region.begin()))):
+                ns = view.substr(region)
+        else:
+            break
+    return ns
+
+def eval_msg(view, region, msg):
+    extended_region = view.line(region)
+    conn.erase_evals(lambda eval: eval.region() and eval.region().intersects(extended_region), view)
+    eval = Eval(view, region, "clone", "Cloning...")
+    eval.msg = {k: v for k, v in msg.items() if v}
+    eval.msg["id"] = eval.id
+    eval.msg["nrepl.middleware.caught/caught"] = "sublime-clojure-repl.middleware/print-root-trace"
+    eval.msg["nrepl.middleware.print/quota"] = 300
+    conn.add_eval(eval)
+    conn.send({"op": "clone", "session": conn.session, "id": eval.id})
+
+def eval(view, region):
+    (line, column) = view.rowcol_utf16(region.begin())
+    msg = {"op":     "eval",
+           "code":   view.substr(region),
+           "ns":     namespace(view, region.begin()) or 'user',
+           "line":   line,
+           "column": column,
+           "file":   view.file_name()}
+    eval_msg(view, region, msg)
+    
+def expand_until(view, point, scopes):
+    if view.scope_name(point) in scopes and point > 0:
+        point = point - 1
+    if view.scope_name(point) not in scopes:
+        begin = point
+        while begin > 0 and view.scope_name(begin - 1) not in scopes:
+            begin -= 1
+        end = point
+        while end < view.size() and view.scope_name(end) not in scopes:
+            end += 1
+        return sublime.Region(begin, end)
+
+def topmost_form(view, point):
+    region = expand_until(view, point, {'source.clojurec '})
+    if region \
+       and view.substr(region).startswith("(comment") \
+       and point >= region.begin() + len("(comment ") \
+       and point < region.end():
+        return expand_until(view, point, {'source.clojurec meta.parens.clojure ',
+                                          'source.clojurec meta.parens.clojure punctuation.section.parens.end.clojure '})
+    return region
+
+class EvalTopmostFormCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        point = self.view.sel()[0].begin()
+        region = topmost_form(self.view, point)
+        if region:
+            eval(self.view, region)
+
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and len(self.view.sel()) == 1
+
+class EvalSelectionCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        region = self.view.sel()[0]
+        eval(self.view, region)
+        
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and len(self.view.sel()) == 1 \
+            and not self.view.sel()[0].empty()
+
+class EvalBufferCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        region = sublime.Region(0, view.size())
+        file_name = view.file_name()
+        msg = {"op":        "load-file",
+               "file":      view.substr(region),
+               "file-path": file_name,
+               "file-name": os.path.basename(file_name) if file_name else "NO_SOURCE_FILE.cljc"}
+        eval_msg(view, region, msg)
+        
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None
+
+class ClearEvalsCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        conn.erase_evals(lambda eval: eval.status in {"success", "exception"}, self.view)
+
+class InterruptEvalCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        for eval in conn.evals.values():
+            if eval.status == "eval":
+                conn.send({"op":           "interrupt",
+                           "session":      eval.session,
+                           "interrupt-id": eval.id})
+                eval.update("interrupt", "Interrupting...")
+
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None
+
+class ToggleTraceCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        point = view.sel()[0].begin()
+        for eval in conn.evals.values():
+            if eval.view == view:
+                region = eval.region()
+                if region and region.contains(point):
+                    eval.toggle_trace()
+                    break
+        
+    def is_enabled(self):
+        return conn.socket != None \
+            and conn.session != None \
+            and len(self.view.sel()) == 1
 
 def format_lookup(info):
     ns = info.get('ns')
@@ -166,30 +343,73 @@ def format_lookup(info):
     body += "</body>"
     return body
 
-def handle_msg(msg):
-    print("<<<", msg)
+def handle_lookup(msg):
+    if "info" in msg:
+        view = sublime.active_window().active_view()
+        if msg["info"]:
+            view.show_popup(format_lookup(msg["info"]), max_width=1024)
+        else:
+            view.show_popup("Not found")
 
-    id = None
-    view = None
-    region = None
-    if "id" in msg:
-        id = msg["id"]
-        if id in conn.evals:
-            eval = conn.evals[id]
-            view = eval.view
-            region = eval.region()
+class LookupSymbolCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        region = self.view.sel()[0]
+        if region.empty():
+            point = region.begin()
+            if view.match_selector(point, 'source.symbol.clojure'):
+                region = self.view.extract_scope(point)
+            elif point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
+                region = self.view.extract_scope(point - 1)
+        if not region.empty():
+            conn.send({"op":      "lookup",
+                       "sym":     view.substr(region),
+                       "session": conn.session,
+                       "id":      Eval.next_id,
+                       "ns":      namespace(view, region.begin()) or 'user'})
+            Eval.next_id += 1
 
-    if id and id == conn.pending_id and "status" in msg and "done" in msg["status"]:
-        conn.pending_id = None
-        if id in conn.evals:
-            eval = conn.evals[id]
-            if eval.scope == 'region.bluish':
-                conn.clear_eval(id)
+    def is_enabled(self):
+        if conn.socket == None or conn.session == None:
+            return False
+        view = self.view
+        if len(view.sel()) > 1:
+            return False
+        region = view.sel()[0]
+        if not region.empty():
+            return True
+        point = region.begin()
+        if view.match_selector(point, 'source.symbol.clojure'):
+            return True
+        if point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
+            return True
+        return False
 
-    for key in msg.get('nrepl.middleware.print/truncated-keys', []):
-        msg[key] += '...'
+class EventListener(sublime_plugin.EventListener):
+    def on_activated(self, view):
+        conn.refresh_status()
 
-    if msg.get("id") == 1 and "new-session" in msg:
+    def on_modified_async(self, view):
+        conn.erase_evals(lambda eval: eval.region() and view.substr(eval.region()) != eval.code, view)
+
+class SocketIO:
+    def __init__(self, socket):
+        self.socket = socket
+        self.buffer = None
+        self.pos = -1
+
+    def read(self, n):
+        if not self.buffer or self.pos >= len(self.buffer):
+            self.buffer = self.socket.recv(4096)
+            # print("<<<", self.buffer.decode())
+            self.pos = 0
+        begin = self.pos
+        end = min(begin + n, len(self.buffer))
+        self.pos = end
+        return self.buffer[begin:end]
+
+def handle_connect(msg):
+    if 1 == msg.get("id") and "new-session" in msg:
         conn.session = msg["new-session"]
         with open(os.path.join(sublime.packages_path(), "sublime-clojure-repl", "src", "middleware.clj"), "r") as file:
             conn.send({"op": "load-file",
@@ -197,9 +417,9 @@ def handle_msg(msg):
                        "file": file.read(),
                        "id": 2})
         conn.set_status("🌓 Uploading middlewares")
-        conn.pending_id = None
+        return True
 
-    elif msg.get("id") == 2 and msg.get("status") == ["done"]:
+    elif 2 == msg.get("id") and msg.get("status") == ["done"]:
         conn.send({"op":               "add-middleware",
                    "middleware":       ["sublime-clojure-repl.middleware/wrap-errors",
                                         "sublime-clojure-repl.middleware/wrap-output"],
@@ -207,45 +427,30 @@ def handle_msg(msg):
                    "session":          conn.session,
                    "id":               3})
         conn.set_status("🌔 Adding middlewares")
+        return True
 
-    elif msg.get("id") == 3 and msg.get("status") == ["done"]:
-        # conn.send({"op": "ls-middleware",
-        #            "session": session,
-        #            "id": 4})
+    elif 3 == msg.get("id") and msg.get("status") == ["done"]:
         conn.set_status(f"🌕 {conn.host}:{conn.port}")
+        return True
 
-    elif "value" in msg and id and view and region:
-        value = msg["value"]
-        conn.add_eval(id, view, region, 'region.greenish', value, '#7CCE9B')
+def handle_done(msg):
+    if "id" in msg and msg["id"] in conn.evals and "status" in msg and "done" in msg["status"]:
+        eval = conn.evals[msg["id"]]
+        if eval.status not in {"success", "exception"}:
+            conn.erase_eval(eval)
 
-    elif "sublime-clojure-repl.middleware/root-ex-class" in msg and "sublime-clojure-repl.middleware/root-ex-msg" in msg:
-        text = msg["sublime-clojure-repl.middleware/root-ex-class"] + ": " + msg["sublime-clojure-repl.middleware/root-ex-msg"]
-        if "sublime-clojure-repl.middleware/root-ex-data" in msg:
-            text += " " + msg["sublime-clojure-repl.middleware/root-ex-data"]
-        if "sublime-clojure-repl.middleware/line" in msg and "sublime-clojure-repl.middleware/column" in msg:
-            line = msg["sublime-clojure-repl.middleware/line"]
-            column = msg["sublime-clojure-repl.middleware/column"]
-            point = view.text_point_utf16(line - 1, column - 1, clamp_column = True)
-            region = sublime.Region(point, view.line(point).end())
-        conn.add_eval(id, view, region, 'region.redish', text, '#DD1730', trace = msg.get("sublime-clojure-repl.middleware/trace"))
+def handle_msg(msg):
+    print("<<<", msg)
 
-    elif "root-ex" in msg:
-        conn.add_eval(id, view, region, 'region.redish', msg["root-ex"], '#DD1730')
+    for key in msg.get('nrepl.middleware.print/truncated-keys', []):
+        msg[key] += '...'
 
-    elif "info" in msg:
-        info = msg["info"]
-        view = sublime.active_window().active_view() if sublime.active_window() else None
-        if view:
-            if info:
-                view.show_popup(format_lookup(info), max_width=1024)
-            else:
-                view.show_popup("Not found")
-
-    elif "status" in msg and "namespace-not-found" in msg["status"]:
-        conn.add_eval(id, view, region, 'region.redish', f'Namespace not found: {msg["ns"]}', '#DD1730')
-
-    else:
-        pass
+    handle_connect(msg) \
+    or handle_new_session(msg) \
+    or handle_value(msg) \
+    or handle_exception(msg) \
+    or handle_lookup(msg) \
+    or handle_done(msg)
 
 def read_loop():
     try:
@@ -269,19 +474,6 @@ def connect(host, port):
         print(e)
         conn.socket = None
         conn.set_status(f"🌑 {host}:{port}")
-
-def namespace(view, point):
-    ns = None
-    for region in view.find_by_selector("entity.name"):
-        if region.end() <= point:
-            begin = region.begin()
-            while begin > 0 and view.match_selector(begin - 1, 'meta.parens'):
-                begin -= 1
-            if re.match(r"\([\s,]*ns[\s,]", view.substr(sublime.Region(begin, region.begin()))):
-                ns = view.substr(region)
-        else:
-            break
-    return ns
 
 class HostPortInputHandler(sublime_plugin.TextInputHandler):
     def placeholder(self):
@@ -330,193 +522,10 @@ class ReconnectCommand(sublime_plugin.ApplicationCommand):
     def is_enabled(self):
         return conn.socket != None
 
-def eval(view, region):
-    conn.pending_id = conn.next_id
-    conn.next_id += 1
-    code = view.substr(region)
-    (line, column) = view.rowcol_utf16(region.begin())
-    msg = {"op":      "eval",
-           "code":    code,
-           "ns":      namespace(view, region.begin()) or 'user',
-           "line":    line + 1,
-           "column":  column + 1,
-           "session": conn.session,
-           "id":      conn.pending_id,
-           "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
-           "nrepl.middleware.print/quota": 300}
-    if view.file_name():
-        msg["file"] = view.file_name()
-    conn.send(msg)
-    conn.clear_evals_intersecting(view, region)
-    conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
-
-def expand_until(view, point, scopes):
-    if view.scope_name(point) in scopes and point > 0:
-        point = point - 1
-    if view.scope_name(point) not in scopes:
-        begin = point
-        while begin > 0 and view.scope_name(begin - 1) not in scopes:
-            begin -= 1
-        end = point
-        while end < view.size() and view.scope_name(end) not in scopes:
-            end += 1
-        return sublime.Region(begin, end)
-
-def topmost_form(view, point):
-    region = expand_until(view, point, {'source.clojurec '})
-    if region \
-       and view.substr(region).startswith("(comment") \
-       and point >= region.begin() + len("(comment ") \
-       and point < region.end():
-        return expand_until(view, point, {'source.clojurec meta.parens.clojure ',
-                                          'source.clojurec meta.parens.clojure punctuation.section.parens.end.clojure '})
-    return region
-
-class EvalTopmostFormCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        point = self.view.sel()[0].begin()
-        region = topmost_form(self.view, point)
-        if region:
-            eval(self.view, region)
-
-    def is_enabled(self):
-        return conn.socket != None \
-            and conn.session != None \
-            and conn.pending_id == None \
-            and len(self.view.sel()) == 1
-
-class EvalSelectionCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        region = self.view.sel()[0]
-        eval(self.view, region)
-        
-    def is_enabled(self):
-        return conn.socket != None \
-            and conn.session != None \
-            and conn.pending_id == None \
-            and len(self.view.sel()) == 1 \
-            and not self.view.sel()[0].empty()
-
-class EvalBufferCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        view = self.view
-        region = sublime.Region(0, view.size())
-        conn.pending_id = conn.next_id
-        conn.next_id += 1
-        msg = {"op":      "load-file",
-               "file":    view.substr(region),
-               "session": conn.session,
-               "id":      conn.pending_id,
-               "nrepl.middleware.caught/caught":"sublime-clojure-repl.middleware/print-root-trace",
-               "nrepl.middleware.print/quota": 300}
-        if view.file_name():
-            path, name = os.path.split(view.file_name())
-            msg["file-path"] = view.file_name()
-            msg["file-name"] = name
-        else:
-            msg["file-name"] = "NO_SOURCE_FILE.cljc"
-        conn.send(msg)
-        conn.clear_evals_intersecting(view, region)
-        conn.add_eval(conn.pending_id, view, region, 'region.bluish', '...', '#7C9BCE')
-        
-    def is_enabled(self):
-        return conn.socket != None \
-            and conn.session != None \
-            and conn.pending_id == None
-
-class ClearEvalsCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        conn.clear_evals_in_view(self.view)
-
-class InterruptEvalCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        conn.send({"op":           "interrupt",
-                   "session":      conn.session,
-                   "interrupt-id": conn.pending_id})
-
-    def is_enabled(self):
-        return conn.socket != None \
-            and conn.session != None \
-            and conn.pending_id != None
-
-class ToggleTraceCommand(sublime_plugin.TextCommand):
-    def find_eval(self, view, point):
-        for eval in conn.evals.values():
-            if eval.view == view:
-                region = eval.region()
-                if region and region.contains(point):
-                    return eval
-
-    def run(self, edit):
-        view = self.view
-        point = view.sel()[0].begin()
-        eval = self.find_eval(view, point)
-        if eval and eval.trace:
-            if eval.trace_id:
-                view.erase_phantom_by_id(eval.trace_id)
-                eval.trace_id = None
-            else:
-                settings = view.settings()
-                top = settings.get('line_padding_top', 0)
-                bottom = settings.get('line_padding_bottom', 0)
-                body = f"""<style>
-                    body {{ background-color: #F7D3D5; padding-top: {top}px; padding-bottom: {bottom}px; }}
-                    p {{ margin: 0; padding-top: {top}px; padding-bottom: {bottom}px; }}
-                </style>"""
-                for line in html.escape(eval.trace).split("\n"):
-                    body += "<p>" + line.replace("\t", "&nbsp;&nbsp;") + "</p>"
-                eval.trace_id = view.add_phantom(eval.key, sublime.Region(point, point), body, sublime.LAYOUT_BLOCK)
-        
-    def is_enabled(self):
-        return conn.socket != None \
-            and conn.session != None \
-            and len(self.view.sel()) == 1
-
-
-class LookupSymbolCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        view = self.view
-        region = self.view.sel()[0]
-        if region.empty():
-            point = region.begin()
-            if view.match_selector(point, 'source.symbol.clojure'):
-                region = self.view.extract_scope(point)
-            elif point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
-                region = self.view.extract_scope(point - 1)
-        if not region.empty():
-            conn.send({"op":      "lookup",
-                       "sym":     view.substr(region),
-                       "session": conn.session,
-                       "id":      conn.next_id,
-                       "ns":      namespace(view, region.begin()) or 'user'})
-            conn.next_id += 1
-
-    def is_enabled(self):
-        if conn.socket == None or conn.session == None:
-            return False
-        view = self.view
-        if len(view.sel()) > 1:
-            return False
-        region = view.sel()[0]
-        if not region.empty():
-            return True
-        point = region.begin()
-        if view.match_selector(point, 'source.symbol.clojure'):
-            return True
-        if point > 0 and view.match_selector(point - 1, 'source.symbol.clojure'):
-            return True
-        return False
-
-class EventListener(sublime_plugin.EventListener):
-    def on_activated(self, view):
-        conn.refresh_status()
-
-    def on_modified_async(self, view):
-        conn.clear_modified(view)
-
 def plugin_loaded():
     connect('localhost', 5555) # FIXME
-    # pass
 
 def plugin_unloaded():
     conn.disconnect()
+
+
