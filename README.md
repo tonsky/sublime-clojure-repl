@@ -32,12 +32,12 @@ In development.
 - [x] Display full stacktrace in editor
 - [x] Detect and highlight error position when evaluating a buffer
 - [x] Parallel evaluation
-- [ ] Use TextChangeListener to invalidate regions
 - [x] Handle eval comments
 - [x] Allow conditional reads in eval_buffer
 - [x] Eval top-level non-bracketed forms (strings, symbols, regexes)
 - [x] Handle namespace-not-found
 - [x] Handle nrepl.middleware.print/truncated-keys
+- [ ] Use TextChangeListener to invalidate regions
 - [ ] Handle multiple results returned from multiple forms at once
 - [x] Eval second topmost form inside (comment)
 - [x] Clear previous evals on the same line
@@ -52,14 +52,17 @@ Issues:
 
 - [ ] When evaling form, source file name gets lost in stacktraces
 - [ ] Eval top-level custom reader tags and stuff with meta
-- [ ] Clean up evals on view close
+- [x] Clean up evals on view close
 - [ ] Line numbers in stacktrace seems to be 0-based
 
 Productize:
 
 - [ ] Include syntax highlighting into the package
 - [ ] Move colors into color scheme
-- [ ] Readme
+- [ ] Figure out minimal Sublime Text version
+- [ ] Design icon
+- [ ] Update Readme
+- [ ] Publish a package
 - [ ] Blog post
 
 ## Motivation

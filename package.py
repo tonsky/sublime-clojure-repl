@@ -392,6 +392,9 @@ class EventListener(sublime_plugin.EventListener):
     def on_modified_async(self, view):
         conn.erase_evals(lambda eval: eval.region() and view.substr(eval.region()) != eval.code, view)
 
+    def on_close(self, view):
+        conn.erase_evals(lambda eval: True, view)
+
 class SocketIO:
     def __init__(self, socket):
         self.socket = socket
